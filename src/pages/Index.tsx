@@ -1,19 +1,21 @@
 import Navigation from "@/components/Navigation";
 import Hero from "@/components/Hero";
 import Services from "@/components/Services";
+import Training from "@/components/Training";
 import About from "@/components/About";
-import Portfolio from "@/components/Portfolio";
 import Contact from "@/components/Contact";
+import Footer from "@/components/Footer";
 
 const Index = () => {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       <Navigation />
       <Hero />
       <Services />
+      <Training />
       <About />
-      <Portfolio />
       <Contact />
+      <Footer />
     </div>
   );
 };

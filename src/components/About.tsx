@@ -1,60 +1,75 @@
+import { Building2, Target, Lightbulb } from "lucide-react";
+
 const About = () => {
   return (
-    <section id="about" className="py-32 bg-muted/20">
+    <section id="about" className="py-32 bg-background relative">
       <div className="container mx-auto px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-20 items-center">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div>
-              <h2 className="text-minimal text-muted-foreground mb-4">ABOUT</h2>
-              <h3 className="text-4xl md:text-6xl font-light text-architectural mb-12">
-                Design Philosophy
-              </h3>
+              <span className="text-tech-label mb-4 block">About Us</span>
+              <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-tech-heading mb-8">
+                Empowering the<br />
+                <span className="text-primary">Next Generation</span>
+              </h2>
               
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <p className="text-lg text-muted-foreground leading-relaxed">
-                  We believe architecture should enhance human experience while respecting 
-                  the natural environment. Our practice focuses on creating spaces that 
-                  are both functional and poetic.
+                  FETUILS TechHub is the first officially recognized technology hub at the University of Ilorin, 
+                  established by the Faculty of Engineering and Technology (FET) to bridge the gap between 
+                  academic learning and industry-ready skills.
                 </p>
                 
                 <p className="text-lg text-muted-foreground leading-relaxed">
-                  Founded in 2015, our studio has completed over 200 projects across 
-                  residential, commercial, and cultural sectors. Each project begins 
-                  with careful listening and ends with thoughtful execution.
+                  Our mission is to provide students with 24/7 access to power, high-speed internet, 
+                  and collaborative workspaces, enabling them to learn, build, and innovate without limitations.
                 </p>
+              </div>
+              
+              <div className="mt-12 grid grid-cols-2 gap-8">
+                <div>
+                  <p className="text-4xl font-bold text-primary">2024</p>
+                  <p className="text-muted-foreground">Established</p>
+                </div>
+                <div>
+                  <p className="text-4xl font-bold text-primary">500+</p>
+                  <p className="text-muted-foreground">Students Trained</p>
+                </div>
               </div>
             </div>
             
-            <div className="space-y-12">
-              <div>
-                <h4 className="text-minimal text-muted-foreground mb-6">APPROACH</h4>
-                <div className="space-y-6">
-                  <div className="border-l-2 border-architectural pl-6">
-                    <h5 className="text-lg font-medium mb-2">Research</h5>
-                    <p className="text-muted-foreground">Deep understanding of context, culture, and climate</p>
-                  </div>
-                  <div className="border-l-2 border-architectural pl-6">
-                    <h5 className="text-lg font-medium mb-2">Collaboration</h5>
-                    <p className="text-muted-foreground">Close partnership with clients, engineers, and craftspeople</p>
-                  </div>
-                  <div className="border-l-2 border-architectural pl-6">
-                    <h5 className="text-lg font-medium mb-2">Innovation</h5>
-                    <p className="text-muted-foreground">Sustainable materials and forward-thinking design solutions</p>
-                  </div>
+            <div className="space-y-6">
+              <div className="p-8 rounded-2xl bg-card border border-border">
+                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-6">
+                  <Building2 className="w-7 h-7 text-primary" />
                 </div>
+                <h3 className="text-xl font-bold mb-3">Infrastructure</h3>
+                <p className="text-muted-foreground">
+                  State-of-the-art facilities with uninterrupted power supply, high-speed internet, 
+                  and modern equipment for technical development.
+                </p>
               </div>
               
-              <div className="pt-8 border-t border-border">
-                <div className="grid grid-cols-2 gap-8">
-                  <div>
-                    <h4 className="text-minimal text-muted-foreground mb-2">FOUNDED</h4>
-                    <p className="text-xl">2015</p>
-                  </div>
-                  <div>
-                    <h4 className="text-minimal text-muted-foreground mb-2">PROJECTS</h4>
-                    <p className="text-xl">200+</p>
-                  </div>
+              <div className="p-8 rounded-2xl bg-card border border-border">
+                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-6">
+                  <Target className="w-7 h-7 text-primary" />
                 </div>
+                <h3 className="text-xl font-bold mb-3">Our Mission</h3>
+                <p className="text-muted-foreground">
+                  To enhance student employability by providing hands-on technical training 
+                  and fostering an innovation ecosystem within the university.
+                </p>
+              </div>
+              
+              <div className="p-8 rounded-2xl bg-card border border-border">
+                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-6">
+                  <Lightbulb className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold mb-3">Innovation Ecosystem</h3>
+                <p className="text-muted-foreground">
+                  A hub for networking, technical development, and collaboration 
+                  bringing together students, faculty, and industry partners.
+                </p>
               </div>
             </div>
           </div>
