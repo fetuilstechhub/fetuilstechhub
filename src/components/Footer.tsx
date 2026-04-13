@@ -25,16 +25,14 @@ const Footer = () => {
             {/* Brand */}
             <div className="lg:col-span-1">
               <Link to="/" className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <div>
-                  <span className="font-bold text-lg tracking-tight">FETUILS</span>
-                  <span className="text-primary font-bold text-lg"> TechHub</span>
-                </div>
+                <img
+                  src="/logo.png"
+                  alt="FETUILS TechHub Logo"
+                  className="h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                />
               </Link>
               <p className="text-muted-foreground text-sm mb-6">
-                The first officially recognized technology hub at the University of Ilorin, 
+                The first officially recognized technology hub at the University of Ilorin,
                 empowering students with skills for the tech industry.
               </p>
               <div className="flex items-center gap-4">
@@ -52,7 +50,7 @@ const Footer = () => {
                 </a>
               </div>
             </div>
-            
+
             {/* Quick Links */}
             <div>
               <h4 className="font-bold mb-6">Quick Links</h4>
@@ -66,7 +64,7 @@ const Footer = () => {
                 ))}
               </ul>
             </div>
-            
+
             {/* Services */}
             <div>
               <h4 className="font-bold mb-6">Services</h4>
@@ -80,7 +78,7 @@ const Footer = () => {
                 ))}
               </ul>
             </div>
-            
+
             {/* Contact */}
             <div>
               <h4 className="font-bold mb-6">Contact</h4>
@@ -96,10 +94,10 @@ const Footer = () => {
               </ul>
             </div>
           </div>
-          
+
           <div className="border-t border-border mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 FETUILS TechHub. All rights reserved.
+              © 2026 FETUILS TechHub. All rights reserved.
             </p>
             <p className="text-sm text-muted-foreground">
               Faculty of Engineering & Technology, University of Ilorin
