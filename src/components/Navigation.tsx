@@ -71,7 +71,7 @@ const Navigation = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-          <Button variant="default" size="sm" className="font-semibold shadow-glow hover:shadow-none transition-shadow duration-300">
+          <Button onClick={() => window.open("https://chat.whatsapp.com/Faz6HL6rO7XBqPNMtxNbWa?mode=gi_t", "_blank")} variant="default" size="sm" className="font-semibold shadow-glow hover:shadow-none transition-shadow duration-300">
             Join Hub
           </Button>
         </div>
