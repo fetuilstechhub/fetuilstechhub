@@ -97,7 +97,7 @@ const Footer = () => {
 
           <div className="border-t border-border mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2026 FETUILS TechHub. All rights reserved.
+              © 2025 FETUILS TechHub. All rights reserved.
             </p>
             <p className="text-sm text-muted-foreground">
               Faculty of Engineering & Technology, University of Ilorin
