@@ -46,7 +46,7 @@ const Navigation = () => {
             className="h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105" 
           />
           {/* <div className="hidden sm:block">
-            <span className="font-bold text-lg tracking-tight">FETUILS</span>
+            <span className="font-bold text-lg tracking-tight">FETUILSsssssss</span>
             <span className="text-primary font-bold text-lg"> TechHub</span>
           </div> */}
         </Link>
