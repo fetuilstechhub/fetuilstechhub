@@ -31,6 +31,12 @@ const Footer = () => {
                   className='h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105'
                 />
               </Link>
+              <Link
+                to='/'
+                className='block text-sm font-semibold text-foreground hover:text-primary transition-colors mb-4'
+              >
+                FETUILS TechHub - Innovation Hub at University of Ilorin
+              </Link>
               <p className='text-muted-foreground text-sm mb-6'>
                 The first officially recognized technology hub at the University
                 of Ilorin, empowering students with skills for the tech
