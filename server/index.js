@@ -27,6 +27,19 @@ app.use(cors());
 app.use('/api/webhook', express.raw({ type: '*/*' }));
 app.use(express.json());
 
+// Debug endpoint to check env vars
+app.get('/api/health', (req, res) => {
+  console.log('[HEALTH] Server is running');
+  res.json({
+    status: 'ok',
+    port: PORT,
+    supabase_configured: !!SUPABASE_URL,
+    paystack_configured: !!PAYSTACK_SECRET_KEY,
+    resend_configured: !!RESEND_API_KEY,
+    frontend_url: FRONTEND_URL,
+  });
+});
+
 // Create Paystack transaction and persist booking as pending
 app.post('/api/create-transaction', async (req, res) => {
   try {
@@ -44,9 +57,15 @@ app.post('/api/create-transaction', async (req, res) => {
       metadata,
     } = req.body;
 
-    if (!email || !amount) return res.status(400).json({ error: 'missing required fields' });
+    console.log('[CREATE-TRANSACTION] Request received:', { email, amount, plan_id });
+
+    if (!email || !amount) {
+      console.log('[CREATE-TRANSACTION] Missing required fields');
+      return res.status(400).json({ error: 'missing required fields' });
+    }
 
     // create booking record (pending)
+    console.log('[CREATE-TRANSACTION] Creating booking in Supabase...');
     const { data: bookingData, error: insertErr } = await supabase
       .from('bookings')
       .insert([
@@ -69,14 +88,18 @@ app.post('/api/create-transaction', async (req, res) => {
       .single();
 
     if (insertErr) {
-      console.error('Supabase insert error', insertErr);
+      console.error('[CREATE-TRANSACTION] Supabase insert error', insertErr);
       return res.status(500).json({ error: 'db_error' });
     }
 
     const booking = bookingData;
+    console.log('[CREATE-TRANSACTION] Booking created with ID:', booking.id);
 
     // initialize Paystack transaction
     // Paystack expects amount in kobo (NGN * 100)
+    const callbackUrl = `${FRONTEND_URL}/booking/confirmation`;
+    console.log('[CREATE-TRANSACTION] Initializing Paystack with callback:', callbackUrl);
+
     const initializeRes = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -87,25 +110,28 @@ app.post('/api/create-transaction', async (req, res) => {
         email,
         amount: Math.round(amount) * 100,
         metadata: { booking_id: booking.id, ...(metadata || {}) },
-        callback_url: `${FRONTEND_URL}/booking/confirmation`,
+        callback_url: callbackUrl,
       }),
     });
 
     const initJson = await initializeRes.json();
+    console.log('[CREATE-TRANSACTION] Paystack response:', { status: initJson.status, reference: initJson.data?.reference });
 
     if (!initJson.status) {
-      console.error('Paystack init error', initJson);
+      console.error('[CREATE-TRANSACTION] Paystack init error', initJson);
       return res.status(500).json({ error: 'paystack_init_failed', details: initJson });
     }
 
     const { authorization_url, reference } = initJson.data;
 
     // update booking with paystack reference
+    console.log('[CREATE-TRANSACTION] Updating booking with Paystack reference:', reference);
     await supabase.from('bookings').update({ paystack_reference: reference }).eq('id', booking.id);
 
+    console.log('[CREATE-TRANSACTION] Success, returning authorization URL');
     return res.json({ authorization_url, reference });
   } catch (err) {
-    console.error(err);
+    console.error('[CREATE-TRANSACTION] Unexpected error:', err);
     return res.status(500).json({ error: 'server_error' });
   }
 });
@@ -115,10 +141,14 @@ app.get('/api/booking-status', async (req, res) => {
     const { reference, trxref } = req.query;
     const lookupReference = reference || trxref;
 
+    console.log('[BOOKING-STATUS] Query received:', { reference, trxref });
+
     if (!lookupReference) {
+      console.log('[BOOKING-STATUS] Missing reference');
       return res.status(400).json({ error: 'missing_reference' });
     }
 
+    console.log('[BOOKING-STATUS] Looking up booking with reference:', lookupReference);
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
@@ -126,17 +156,19 @@ app.get('/api/booking-status', async (req, res) => {
       .maybeSingle();
 
     if (error) {
-      console.error('Booking status lookup error', error);
+      console.error('[BOOKING-STATUS] Lookup error', error);
       return res.status(500).json({ error: 'booking_lookup_failed' });
     }
 
     if (!data) {
+      console.log('[BOOKING-STATUS] Booking not found for reference:', lookupReference);
       return res.status(404).json({ error: 'booking_not_found' });
     }
 
+    console.log('[BOOKING-STATUS] Booking found:', { id: data.id, status: data.status });
     return res.json(data);
   } catch (err) {
-    console.error('booking status error', err);
+    console.error('[BOOKING-STATUS] Unexpected error', err);
     return res.status(500).json({ error: 'server_error' });
   }
 });
@@ -144,43 +176,66 @@ app.get('/api/booking-status', async (req, res) => {
 // Paystack webhook - raw body required for signature verification
 app.post('/api/webhook', async (req, res) => {
   try {
+    console.log('[WEBHOOK] Received request');
     const signature = req.header('x-paystack-signature');
     const body = req.body; // Buffer from express.raw()
 
+    console.log('[WEBHOOK] Signature present:', !!signature);
+    console.log('[WEBHOOK] Body type:', typeof body, 'is buffer:', Buffer.isBuffer(body));
+
     if (!Buffer.isBuffer(body)) {
-      console.error('Webhook body is not raw buffer', typeof body);
+      console.error('[WEBHOOK] Body is not raw buffer', typeof body);
       return res.status(400).send('invalid webhook body');
     }
 
     // verify signature
+    console.log('[WEBHOOK] Verifying signature...');
     const hmac = crypto.createHmac('sha512', PAYSTACK_SECRET_KEY || '');
     hmac.update(body);
     const digest = hmac.digest('hex');
 
+    console.log('[WEBHOOK] Expected signature:', digest);
+    console.log('[WEBHOOK] Received signature:', signature);
+
     if (signature !== digest) {
-      console.warn('Invalid Paystack signature');
+      console.warn('[WEBHOOK] Invalid Paystack signature');
       return res.status(400).send('invalid signature');
     }
 
+    console.log('[WEBHOOK] Signature verified, parsing payload...');
     const payload = JSON.parse(body.toString());
     const event = payload;
+
+    console.log('[WEBHOOK] Event type:', event.event);
+    console.log('[WEBHOOK] Event data:', JSON.stringify(event.data, null, 2));
 
     // interested in transaction.success
     if (event.event === 'charge.success' || event.event === 'transfer.success' || event.event === 'invoice.paid' || (event.data && event.data.status === 'success')) {
       const reference = event.data.reference;
+      console.log('[WEBHOOK] Processing successful payment with reference:', reference);
 
       // update booking status
+      console.log('[WEBHOOK] Updating booking status to paid...');
       const { error: updateErr } = await supabase
         .from('bookings')
         .update({ status: 'paid', paystack_reference: reference })
         .eq('paystack_reference', reference);
 
       if (updateErr) {
-        console.error('Booking update error', updateErr);
+        console.error('[WEBHOOK] Booking update error', updateErr);
+      } else {
+        console.log('[WEBHOOK] Booking status updated successfully');
       }
 
       // fetch booking to include details in email
+      console.log('[WEBHOOK] Fetching booking details for email...');
       const { data: booking } = await supabase.from('bookings').select('*').eq('paystack_reference', reference).maybeSingle();
+
+      if (!booking) {
+        console.error('[WEBHOOK] Booking not found after update');
+      } else {
+        console.log('[WEBHOOK] Booking found:', { id: booking.id, email: booking.email });
+      }
 
       // send order summary email via Resend if available
       if (RESEND_API_KEY && booking) {
@@ -193,6 +248,7 @@ app.post('/api/webhook', async (req, res) => {
           <p>Reference: ${reference}</p>
           <p>Thank you — see you soon.</p>`;
 
+          console.log('[WEBHOOK] Sending email to:', booking.email);
           const resendRes = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
@@ -200,29 +256,41 @@ app.post('/api/webhook', async (req, res) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'FETUILS TechHub <noreply@auth.zipfast.app>',
+              from: 'FETUILS TechHub <noreply@resend.dev>',
               to: booking.email,
               subject: `Booking confirmation — ${booking.plan_title}`,
               html: emailHtml,
             }),
           });
+          
+          console.log('[WEBHOOK] Resend API response status:', resendRes.status);
           const resendJson = await resendRes.json();
+          
           if (!resendRes.ok) {
-            console.error('Resend API error', resendRes.status, resendJson);
+            console.error('[WEBHOOK] Resend API error', resendRes.status, resendJson);
           } else {
-            console.log('Email sent successfully:', resendJson.id);
+            console.log('[WEBHOOK] Email sent successfully:', resendJson.id);
           }
         } catch (err) {
-          console.error('Error sending email via Resend', err);
+          console.error('[WEBHOOK] Error sending email via Resend', err);
+        }
+      } else {
+        if (!RESEND_API_KEY) {
+          console.warn('[WEBHOOK] Resend API key not configured');
+        }
+        if (!booking) {
+          console.warn('[WEBHOOK] Booking not found, skipping email');
         }
       }
+    } else {
+      console.log('[WEBHOOK] Event not a success event, ignoring');
     }
 
     res.status(200).send('ok');
   } catch (err) {
-    console.error('webhook processing error', err);
+    console.error('[WEBHOOK] Unexpected error', err);
     res.status(500).send('server error');
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`[SERVER] Server running on port ${PORT}`));
