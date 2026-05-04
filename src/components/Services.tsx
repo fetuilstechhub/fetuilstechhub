@@ -1,28 +1,37 @@
 import { Mic, Printer, CuboidIcon as Cube3d, FileText, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const Services = () => {
   const services = [
     {
       icon: Cube3d,
+      bookingLink: "/contact",
+      bookingLabel: "Request Quote",
       title: "3D Printing Centre",
       description: "Access cutting-edge 3D printing technology for prototyping, model creation, and engineering projects.",
       features: ["FDM & Resin Printing", "Design Consultation", "Rapid Prototyping"]
     },
     {
       icon: Mic,
+      bookingLink: "/booking?plan=studio_standard",
+      bookingLabel: "Book Studio",
       title: "Podcast Studio",
       description: "Professional-grade recording studio for podcasts, interviews, and content creation.",
       features: ["Soundproof Room", "Pro Audio Equipment", "Editing Support"]
     },
     {
       icon: FileText,
+      bookingLink: "/contact",
+      bookingLabel: "Request Quote",
       title: "FETUILS Print Hub",
       description: "High-quality printing services for academic documents, posters, and project materials.",
       features: ["Large Format Printing", "Binding Services", "Express Printing"]
     },
     {
       icon: Printer,
+      bookingLink: "/booking?plan=daily",
+      bookingLabel: "Book Workspace",
       title: "Workspace Access",
       description: "24/7 collaborative workspace with reliable power and high-speed internet for focused work.",
       features: ["24/7 Power Supply", "High-Speed WiFi", "Quiet Zones"]
@@ -84,6 +93,12 @@ const Services = () => {
                       {feature}
                     </span>
                   ))}
+                </div>
+
+                <div className="mt-6">
+                  <Button asChild variant="outline" className="w-full group-hover:border-primary/40">
+                    <Link to={service.bookingLink}>{service.bookingLabel}</Link>
+                  </Button>
                 </div>
               </div>
             ))}

@@ -71,3 +71,43 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Booking & Payments (Supabase + Paystack + Resend)
+
+This repo now includes a scaffold for bookings and payments using Supabase for persistence, Paystack for payments, and Resend for transactional emails.
+
+Files added:
+- `supabase/schema.sql`: SQL to create the `bookings` table.
+- `server/`: Express-based API that initializes Paystack transactions and handles Paystack webhooks; persisting bookings to Supabase and sending emails via Resend.
+- `src/pages/Booking.tsx`: Booking form that calls the server to initialize payments.
+- `src/components/OrderSummary.tsx`: Small order summary UI used on the booking page.
+- `src/lib/plans.ts`: Shared plans/pricing used by the booking page.
+- `.env.local.example` and `server/.env.example`: env var templates.
+
+Quick start (local):
+
+1. Copy env templates and fill real keys.
+
+Server:
+
+```bash
+cd server
+cp .env.example .env
+# fill .env with SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PAYSTACK_SECRET_KEY, RESEND_API_KEY, FRONTEND_URL
+npm install
+npm run start
+```
+
+Frontend:
+
+```bash
+cp .env.local.example .env.local
+# set VITE_API_BASE_URL to your server URL
+npm run dev
+```
+
+Important:
+- Fill Supabase `bookings` table by running `supabase/schema.sql` in your Supabase SQL editor.
+- Add your Paystack webhook endpoint (`/api/webhook`) to your Paystack dashboard and set the webhook secret accordingly.
+- Store secrets safely (do NOT commit real keys).
+

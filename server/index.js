@@ -11,6 +11,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'FETUILS TechHub <noreply@auth.zipfast.app>';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -87,7 +88,7 @@ app.post('/api/test-webhook', async (req, res) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'FETUILS TechHub <noreply@auth.zipfast.app>',
+              from: RESEND_FROM_EMAIL,
               to: 'test@example.com',
               subject: 'Test Email - Booking Confirmation',
               html: '<h2>This is a test email</h2><p>If you receive this, Resend is working!</p>',
@@ -326,7 +327,7 @@ app.post('/api/webhook', async (req, res) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'FETUILS TechHub <noreply@auth.zipfast.app>',
+              from: RESEND_FROM_EMAIL,
               to: booking.email,
               subject: `Booking confirmation — ${booking.plan_title}`,
               html: emailHtml,

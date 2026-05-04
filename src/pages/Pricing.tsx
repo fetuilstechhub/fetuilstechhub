@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 const Pricing = () => {
   const workspacePlans = [
     {
+      id: 'daily',
       title: "The Daily Pass",
       subtitle: "The 'Quick Grind'",
       description: "Perfect for students who just need a few hours of steady power and internet to finish an assignment or join a meeting.",
@@ -21,6 +22,7 @@ const Pricing = () => {
       highlight: false,
     },
     {
+      id: 'weekly',
       title: "The Weekly Plan",
       subtitle: "The 'Project Week'",
       description: "Designed for students working on a specific hackathon, a mid-term project, or an intensive study week.",
@@ -35,6 +37,7 @@ const Pricing = () => {
       highlight: true,
     },
     {
+      id: 'monthly',
       title: "Monthly / Semester Plan",
       subtitle: "The 'Power User'",
       description: "For serious developers, designers, and students who want the Hub to be their permanent 'office' on campus.",
@@ -53,20 +56,26 @@ const Pricing = () => {
 
   const specialisedPlans = [
     {
+      id: "team_startup",
       title: "The 'Team/Startup' Bundle",
       description: "For groups of 3–5 students working together on a startup or a final year project.",
       price: "₦20,000",
       period: "per month / team",
       icon: Users,
-      features: ["Dedicated table/area for the team to collaborate"]
+      features: ["Dedicated table/area for the team to collaborate"],
+      ctaLabel: "Book Team Bundle",
+      ctaTo: "/booking?plan=monthly"
     },
     {
+      id: "fet_discount",
       title: "Faculty of Engineering (FET) Discount",
       description: "To foster our own ecosystem first. Available for all valid FET students.",
       price: "10% OFF",
       period: "any plan",
       icon: BadgePercent,
-      features: ["Requires presentation of a valid Faculty ID card"]
+      features: ["Requires presentation of a valid Faculty ID card"],
+      ctaLabel: "Claim Discount",
+      ctaTo: "/booking?plan=daily"
     }
   ];
 
@@ -76,6 +85,7 @@ const Pricing = () => {
       description: "Professional tools for creators, podcasters, and campus influencers.",
       items: [
         {
+          id: "studio_standard",
           title: "Standard Studio Session",
           price: "₦5,000",
           period: "up to 90 mins",
@@ -88,6 +98,7 @@ const Pricing = () => {
           ]
         },
         {
+          id: "photoshoot",
           title: "Professional Photoshoot",
           price: "₦3,000",
           period: "base session",
@@ -105,6 +116,7 @@ const Pricing = () => {
       description: "Premium gear for your external events and projects.",
       items: [
         {
+          id: "visual_kit",
           title: "Visual & Presentation Kit",
           price: "Starting at ₦5,000",
           period: "per day",
@@ -116,6 +128,7 @@ const Pricing = () => {
           ]
         },
         {
+          id: "audio_lighting",
           title: "Audio & Lighting Kit",
           price: "₦2,000 – ₦3,000",
           period: "per day",
@@ -132,6 +145,7 @@ const Pricing = () => {
       description: "Tailored solutions for your physical and digital builds.",
       items: [
         {
+          id: "branding_print",
           title: "Branding & Printing Section",
           price: "Custom Quote",
           period: "based on requirements",
@@ -143,6 +157,7 @@ const Pricing = () => {
           ]
         },
         {
+          id: "prototype_3d",
           title: "3D Printing & Prototyping",
           price: "Custom Quote",
           period: "based on specifications",
@@ -232,11 +247,8 @@ const Pricing = () => {
                   ))}
                 </ul>
                 
-                <Button 
-                  className="w-full" 
-                  variant={plan.highlight ? "default" : "outline"}
-                >
-                  Choose Plan
+                <Button asChild className="w-full" variant={plan.highlight ? "default" : "outline"}>
+                  <Link to={`/booking?plan=${plan.id}`}>Choose Plan</Link>
                 </Button>
               </div>
             ))}
@@ -264,6 +276,10 @@ const Pricing = () => {
                       </li>
                     ))}
                   </ul>
+
+                  <Button asChild className="mt-5 w-full" variant="outline">
+                    <Link to={plan.ctaTo}>{plan.ctaLabel}</Link>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -313,6 +329,18 @@ const Pricing = () => {
                           </li>
                         ))}
                       </ul>
+
+                      <div className="mt-8">
+                        {(item.id === "studio_standard" || item.id === "photoshoot") ? (
+                          <Button asChild className="w-full">
+                            <Link to={`/booking?plan=${item.id}`}>Book This Service</Link>
+                          </Button>
+                        ) : (
+                          <Button asChild variant="outline" className="w-full">
+                            <Link to="/contact">Get a Custom Quote</Link>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
