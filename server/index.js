@@ -40,6 +40,76 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Test webhook endpoint - simulate a Paystack webhook
+app.post('/api/test-webhook', async (req, res) => {
+  try {
+    console.log('[TEST-WEBHOOK] Simulating Paystack webhook...');
+    const testReference = 'test_' + Date.now();
+    
+    // Create a test booking first
+    const { data: booking, error: insertErr } = await supabase
+      .from('bookings')
+      .insert([{
+        full_name: 'Test User',
+        email: 'test@example.com',
+        plan_id: 'test',
+        plan_title: 'Test Plan',
+        amount: 1000,
+        currency: 'NGN',
+        status: 'pending',
+        paystack_reference: testReference,
+        metadata: {},
+      }])
+      .select()
+      .single();
+
+    if (insertErr) {
+      console.error('[TEST-WEBHOOK] Failed to create test booking', insertErr);
+      return res.status(500).json({ error: 'failed to create test booking' });
+    }
+
+    console.log('[TEST-WEBHOOK] Test booking created:', booking.id);
+
+    // Update to paid
+    console.log('[TEST-WEBHOOK] Updating booking to paid...');
+    await supabase
+      .from('bookings')
+      .update({ status: 'paid' })
+      .eq('id', booking.id);
+
+    // Try to send email
+    if (RESEND_API_KEY) {
+      console.log('[TEST-WEBHOOK] Sending test email...');
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'FETUILS TechHub <noreply@resend.dev>',
+          to: 'test@example.com',
+          subject: 'Test Email - Booking Confirmation',
+          html: '<h2>This is a test email</h2><p>If you receive this, Resend is working!</p>',
+        }),
+      });
+
+      const resendJson = await resendRes.json();
+      if (!resendRes.ok) {
+        console.error('[TEST-WEBHOOK] Resend error:', resendRes.status, resendJson);
+        return res.status(500).json({ error: 'email send failed', details: resendJson });
+      } else {
+        console.log('[TEST-WEBHOOK] Email sent:', resendJson.id);
+      }
+    }
+
+    res.json({ success: true, booking_id: booking.id, reference: testReference });
+  } catch (err) {
+    console.error('[TEST-WEBHOOK] Error:', err);
+    res.status(500).json({ error: 'test webhook failed', details: err.message });
+  }
+});
+
 // Create Paystack transaction and persist booking as pending
 app.post('/api/create-transaction', async (req, res) => {
   try {
