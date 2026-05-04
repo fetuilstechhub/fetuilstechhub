@@ -68,6 +68,9 @@ const Pricing = () => {
     },
     {
       id: "fet_discount",
+      features: ["Dedicated table/area for the team to collaborate"]
+    },
+    {
       title: "Faculty of Engineering (FET) Discount",
       description: "To foster our own ecosystem first. Available for all valid FET students.",
       price: "10% OFF",
@@ -76,6 +79,7 @@ const Pricing = () => {
       features: ["Requires presentation of a valid Faculty ID card"],
       ctaLabel: "Claim Discount",
       ctaTo: "/booking?plan=daily"
+      features: ["Requires presentation of a valid Faculty ID card"]
     }
   ];
 
@@ -249,6 +253,11 @@ const Pricing = () => {
                 
                 <Button asChild className="w-full" variant={plan.highlight ? "default" : "outline"}>
                   <Link to={`/booking?plan=${plan.id}`}>Choose Plan</Link>
+                <Button 
+                  className="w-full" 
+                  variant={plan.highlight ? "default" : "outline"}
+                >
+                  Choose Plan
                 </Button>
               </div>
             ))}
