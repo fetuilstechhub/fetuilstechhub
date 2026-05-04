@@ -7,7 +7,7 @@ const About = () => {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
             
-            {/* Left Side: Large Image */}
+            
             <div className="relative reveal order-2 lg:order-1 h-full min-h-[400px] lg:min-h-[600px] rounded-[2.5rem] overflow-hidden shadow-2xl group">
               <div className="absolute inset-0 bg-slate-800" /> {/* Fallback color */}
               <img 
