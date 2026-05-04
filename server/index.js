@@ -80,19 +80,19 @@ app.post('/api/test-webhook', async (req, res) => {
     // Try to send email
     if (RESEND_API_KEY) {
       console.log('[TEST-WEBHOOK] Sending test email...');
-      const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'FETUILS TechHub <noreply@resend.dev>',
-          to: 'test@example.com',
-          subject: 'Test Email - Booking Confirmation',
-          html: '<h2>This is a test email</h2><p>If you receive this, Resend is working!</p>',
-        }),
-      });
+          const resendRes = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${RESEND_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'FETUILS TechHub <noreply@auth.zipfast.app>',
+              to: 'test@example.com',
+              subject: 'Test Email - Booking Confirmation',
+              html: '<h2>This is a test email</h2><p>If you receive this, Resend is working!</p>',
+            }),
+          });
 
       const resendJson = await resendRes.json();
       if (!resendRes.ok) {
@@ -326,7 +326,7 @@ app.post('/api/webhook', async (req, res) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'FETUILS TechHub <noreply@resend.dev>',
+              from: 'FETUILS TechHub <noreply@auth.zipfast.app>',
               to: booking.email,
               subject: `Booking confirmation — ${booking.plan_title}`,
               html: emailHtml,
