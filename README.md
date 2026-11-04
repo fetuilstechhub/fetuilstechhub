@@ -48,6 +48,7 @@ Create `server/.env`:
 | `RESEND_API_KEY` | Resend API key |
 | `RESEND_FROM_EMAIL` | Sender address for booking emails |
 | `FRONTEND_URL` | Site URL that Paystack returns customers to |
+| `STAFF_PIN` | PIN for the door scanner at `/door`, at least 6 characters. Changing it signs out every phone |
 
 Never commit real keys. `.env` and `.env.local` files are ignored by git.
 

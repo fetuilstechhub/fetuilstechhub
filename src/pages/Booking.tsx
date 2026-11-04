@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 type PlanOption = { id: string; title: string; price: number; period?: string };
 
 const allPlans: PlanOption[] = [...workspacePlans, ...rentalItems];
+const PHOTO_PLANS = ['weekly', 'monthly'];
 
 const StepHeading = ({ step, title }: { step: number; title: string }) => (
   <div className="mb-5 flex items-center gap-3">
@@ -120,6 +121,12 @@ const Booking = () => {
                     <PlanCard key={p.id} plan={p} selected={planId === p.id} onSelect={() => setPlanId(p.id)} />
                   ))}
                 </div>
+                {PHOTO_PLANS.includes(planId) && (
+                  <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                    This pass is for one person. We take your photo at your first entry to confirm it's you on later
+                    visits, and delete it when your pass ends.
+                  </p>
+                )}
                 <h3 className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Studio</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {rentalItems.map((p) => (

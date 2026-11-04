@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { PLANS, validUntil } from './plans.js';
 import { escapeHtml, passEmailHtml } from './pass-email.js';
+import { doorRouter } from './door.js';
 
 dotenv.config();
 
@@ -139,6 +140,29 @@ async function settlePayment({ reference, paidKobo, currency }) {
   return updated[0];
 }
 
+// The webhook may be late or may have failed, so ask Paystack directly.
+async function confirmIfPending(booking) {
+  if (booking.status !== 'pending') return booking;
+  try {
+    const verifyResponse = await fetch(
+      `${PAYSTACK_API_BASE}/transaction/verify/${encodeURIComponent(booking.paystack_reference)}`,
+      { headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` } },
+    );
+    const verify = await verifyResponse.json();
+    if (verifyResponse.ok && verify.data?.status === 'success') {
+      const settled = await settlePayment({
+        reference: booking.paystack_reference,
+        paidKobo: verify.data.amount,
+        currency: verify.data.currency,
+      });
+      return settled || booking;
+    }
+  } catch (err) {
+    console.error('[PAYMENT] Paystack verify failed', err.message);
+  }
+  return booking;
+}
+
 app.post('/api/create-transaction', limiter(30), async (req, res) => {
   try {
     const body = req.body || {};
@@ -230,23 +254,7 @@ app.get('/api/booking-status', limiter(120), async (req, res) => {
     }
     if (!data) return res.status(404).json({ error: 'booking_not_found' });
 
-    let booking = data;
-    // The webhook may be late or may have failed, so ask Paystack directly.
-    if (booking.status === 'pending') {
-      try {
-        const verifyResponse = await fetch(
-          `${PAYSTACK_API_BASE}/transaction/verify/${encodeURIComponent(reference)}`,
-          { headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` } },
-        );
-        const verify = await verifyResponse.json();
-        if (verifyResponse.ok && verify.data?.status === 'success') {
-          booking =
-            (await settlePayment({ reference, paidKobo: verify.data.amount, currency: verify.data.currency })) || booking;
-        }
-      } catch (err) {
-        console.error('[BOOKING-STATUS] Paystack verify failed', err.message);
-      }
-    }
+    const booking = await confirmIfPending(data);
 
     return res.json({
       status: booking.status,
@@ -322,6 +330,17 @@ app.post('/api/contact', limiter(10), async (req, res) => {
     return res.status(502).json({ error: 'We could not send your message.' });
   }
 });
+
+app.use(
+  '/api/door',
+  doorRouter({
+    supabase,
+    limiter,
+    confirmIfPending,
+    staffPin: process.env.STAFF_PIN,
+    tokenSecret: SUPABASE_SERVICE_ROLE_KEY,
+  }),
+);
 
 // Bad JSON and similar errors: reply with JSON rather than an HTML stack trace.
 app.use((err, req, res, next) => {

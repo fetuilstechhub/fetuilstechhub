@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { PLANS } from '../plans.js';
+import { createFakeServices, emptyState } from './fake-services.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SECRET = 'test_secret';
@@ -17,54 +17,8 @@ const PORT = 18787;
 const FAKE_PORT = 18788;
 const API = `http://127.0.0.1:${PORT}`;
 
-const state = { bookings: [], emails: [], paystackInits: [], verify: null, failDbWrites: false, failPaystack: false };
-
-const readBody = (req) =>
-  new Promise((resolve) => {
-    let data = '';
-    req.on('data', (chunk) => (data += chunk));
-    req.on('end', () => resolve(data));
-  });
-
-const fake = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://127.0.0.1:${FAKE_PORT}`);
-  const body = await readBody(req);
-  const send = (code, value) => {
-    res.writeHead(code, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(value));
-  };
-
-  if (url.pathname === '/rest/v1/bookings') {
-    const matches = state.bookings.filter((b) =>
-      [...url.searchParams].every(([k, v]) => !v.startsWith('eq.') || String(b[k]) === v.slice(3)),
-    );
-    const single = (req.headers.accept || '').includes('vnd.pgrst.object');
-    const reply = (rows) => (single ? send(rows[0] ? 200 : 406, rows[0] ?? {}) : send(200, rows));
-    if (req.method === 'GET') return reply(matches);
-    if (state.failDbWrites) return send(500, { message: 'db down' });
-    if (req.method === 'POST') {
-      const row = { id: crypto.randomUUID(), ...JSON.parse(body)[0] };
-      state.bookings.push(row);
-      return reply([row]);
-    }
-    if (req.method === 'PATCH') {
-      matches.forEach((b) => Object.assign(b, JSON.parse(body)));
-      return reply(matches);
-    }
-  }
-  if (url.pathname === '/transaction/initialize') {
-    if (state.failPaystack) return send(400, { status: false, message: 'nope' });
-    const init = JSON.parse(body);
-    state.paystackInits.push(init);
-    return send(200, { status: true, data: { authorization_url: 'https://pay.example/x', reference: init.reference } });
-  }
-  if (url.pathname.startsWith('/transaction/verify/')) return send(200, { status: true, data: state.verify ?? { status: 'abandoned' } });
-  if (url.pathname === '/emails') {
-    state.emails.push(JSON.parse(body));
-    return send(200, { id: 'email_1' });
-  }
-  return send(404, { message: `unexpected ${req.method} ${url.pathname}` });
-});
+const state = emptyState();
+const fake = createFakeServices(state, FAKE_PORT);
 
 let server;
 
@@ -107,7 +61,7 @@ after(() => {
 });
 
 beforeEach(() => {
-  Object.assign(state, { bookings: [], emails: [], paystackInits: [], verify: null, failDbWrites: false, failPaystack: false });
+  Object.assign(state, emptyState());
 });
 
 const future = '2099-01-15';

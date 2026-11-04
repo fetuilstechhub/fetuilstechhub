@@ -3,7 +3,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import Index from './pages/Index';
 import Services from './pages/Services';
 import Training from './pages/Training';
@@ -13,6 +13,9 @@ import Pricing from './pages/Pricing';
 import NotFound from './pages/NotFound';
 import Booking from './pages/Booking';
 import Confirmation from './pages/Confirmation';
+
+// Staff only, so customers don't download the scanner code.
+const Door = lazy(() => import('./pages/Door'));
 
 const queryClient = new QueryClient();
 
@@ -37,6 +40,14 @@ const App = () => (
           <Route path='/' element={<Index />} />
           <Route path='/booking' element={<Booking />} />
           <Route path='/booking/confirmation' element={<Confirmation />} />
+          <Route
+            path='/door'
+            element={
+              <Suspense fallback={<div className='min-h-screen bg-[#0B1F3F]' />}>
+                <Door />
+              </Suspense>
+            }
+          />
           <Route path='/services' element={<Services />} />
           <Route path='/training' element={<Training />} />
           <Route path='/about' element={<About />} />

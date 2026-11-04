@@ -25,3 +25,28 @@ create unique index if not exists idx_bookings_reference on bookings (paystack_r
 -- Customer data must never be readable with the public key.
 -- With no policies, only the server's service role key can access this table.
 alter table bookings enable row level security;
+
+-- Door scanner: one row per entry. The unique index stops two phones
+-- from both getting a green result for the same entry.
+create table if not exists check_ins (
+  id uuid default gen_random_uuid() primary key,
+  booking_id uuid not null references bookings (id) on delete cascade,
+  check_in_date date not null,
+  slot smallint not null default 1,
+  created_at timestamptz default now()
+);
+
+create unique index if not exists idx_check_ins_entry on check_ins (booking_id, check_in_date, slot);
+create index if not exists idx_check_ins_date on check_ins (check_in_date);
+alter table check_ins enable row level security;
+
+-- Door scanner: holder photos for weekly and monthly passes.
+-- The server deletes each photo once its pass has ended.
+create table if not exists pass_photos (
+  booking_id uuid primary key references bookings (id) on delete cascade,
+  image text not null,
+  expires_on date not null,
+  created_at timestamptz default now()
+);
+
+alter table pass_photos enable row level security;
