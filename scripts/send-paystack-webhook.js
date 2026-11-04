@@ -7,7 +7,6 @@
   This will build a minimal `charge` payload and sign it with HMAC-SHA512 using the provided secret.
 */
 import crypto from 'crypto';
-import fetch from 'node-fetch';
 
 const [,, url, secret] = process.argv;
 if (!url || !secret) {

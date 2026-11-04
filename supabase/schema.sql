@@ -1,5 +1,5 @@
--- Supabase schema for bookings
--- Run this in your Supabase SQL editor to create the table
+-- Bookings table for the FETUILS TechHub site.
+-- Safe to run more than once in the Supabase SQL editor.
 
 create table if not exists bookings (
   id uuid default gen_random_uuid() primary key,
@@ -13,10 +13,15 @@ create table if not exists bookings (
   start_time timestamptz,
   end_time timestamptz,
   duration_minutes integer,
-  status text default 'pending', -- pending, paid, cancelled
+  status text default 'pending', -- pending, paid, failed
   paystack_reference text,
   metadata jsonb,
   created_at timestamptz default now()
 );
 
 create index if not exists idx_bookings_email on bookings (email);
+create unique index if not exists idx_bookings_reference on bookings (paystack_reference);
+
+-- Customer data must never be readable with the public key.
+-- With no policies, only the server's service role key can access this table.
+alter table bookings enable row level security;
