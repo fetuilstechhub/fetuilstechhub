@@ -75,7 +75,7 @@ const BookingPass = ({
           <Field label={validUntil && validUntil !== date ? 'Valid' : 'Date'} value={validText} />
         </div>
         <Field label={status === 'preview' ? 'Amount' : 'Amount paid'} value={`₦${amount.toLocaleString()}`} />
-        <Field label="Location" value="FET, UNILORIN" />
+        <Field label="Location" value="NLNG, UNILORIN" />
       </div>
 
       <div className="relative h-6" aria-hidden>

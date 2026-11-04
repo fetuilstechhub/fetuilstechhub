@@ -64,7 +64,7 @@ export function passEmailHtml({ booking, frontendUrl }) {
       ${field(validUntil && validUntil !== date ? 'Valid' : 'Date', escapeHtml(validText))}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td width="50%" valign="top">${field('Amount paid', amount)}</td>
-        <td width="50%" valign="top">${field('Location', 'FET, UNILORIN')}</td>
+        <td width="50%" valign="top">${field('Location', 'NLNG, UNILORIN')}</td>
       </tr></table>
     </td></tr>
     <tr><td style="padding:0 22px;"><div style="border-top:2px dashed #e2e8f0;font-size:0;line-height:0;">&nbsp;</div></td></tr>
