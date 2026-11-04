@@ -81,7 +81,7 @@ const Pricing = () => {
       icon: Users,
       features: ["Dedicated table/area for the team to collaborate"],
       ctaLabel: "Book Team Bundle",
-      ctaTo: "/booking?plan=monthly",
+      ctaTo: "/booking?plan=team_startup",
     },
     {
       id: "fet_discount",
@@ -93,7 +93,7 @@ const Pricing = () => {
       icon: BadgePercent,
       features: ["Requires presentation of a valid Faculty ID card"],
       ctaLabel: "Claim Discount",
-      ctaTo: "/booking?plan=daily",
+      ctaTo: "/contact",
     },
   ];
 

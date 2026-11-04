@@ -2,12 +2,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { MapPin, Mail, Clock, Send } from 'lucide-react';
+import { useContactForm } from '@/hooks/use-contact-form';
 
 const Contact = () => {
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission
-  };
+  const { sending, handleSubmit } = useContactForm();
 
   return (
     <section
@@ -61,7 +59,7 @@ const Contact = () => {
                       Email
                     </h4>
                     <p className='text-gray-300 font-light text-sm md:text-base'>
-                      info@fetuils.ng
+                      fetuilstechhub@gmail.com
                     </p>
                   </div>
                 </div>
@@ -92,12 +90,15 @@ const Contact = () => {
             </h3>
 
             <form onSubmit={handleSubmit} className='space-y-8'>
+              <input type='text' name='website' tabIndex={-1} autoComplete='off' aria-hidden='true' className='hidden' />
               <div className='grid sm:grid-cols-2 gap-8 lg:gap-10'>
                 <div className='group'>
                   <label className='text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 block group-focus-within:text-primary transition-colors'>
                     First Name
                   </label>
                   <Input
+                    name='firstName'
+                    required
                     placeholder='John'
                     className='border-0 border-b-2 border-gray-100 rounded-none px-0 py-2 bg-transparent focus-visible:ring-0 focus-visible:border-primary shadow-none text-lg font-medium text-[#0B1F3F] placeholder:font-light'
                   />
@@ -107,6 +108,8 @@ const Contact = () => {
                     Last Name
                   </label>
                   <Input
+                    name='lastName'
+                    required
                     placeholder='Doe'
                     className='border-0 border-b-2 border-gray-100 rounded-none px-0 py-2 bg-transparent focus-visible:ring-0 focus-visible:border-primary shadow-none text-lg font-medium text-[#0B1F3F] placeholder:font-light'
                   />
@@ -118,6 +121,8 @@ const Contact = () => {
                   Email Address
                 </label>
                 <Input
+                  name='email'
+                  required
                   type='email'
                   placeholder='john@example.com'
                   className='border-0 border-b-2 border-gray-100 rounded-none px-0 py-2 bg-transparent focus-visible:ring-0 focus-visible:border-primary shadow-none text-lg font-medium text-[#0B1F3F] placeholder:font-light'
@@ -129,6 +134,8 @@ const Contact = () => {
                   Message
                 </label>
                 <Textarea
+                  name='message'
+                  required
                   placeholder='Tell us more about your inquiry...'
                   className='border-0 border-b-2 border-gray-100 rounded-none px-0 py-2 bg-transparent focus-visible:ring-0 focus-visible:border-primary shadow-none text-lg font-medium text-[#0B1F3F] placeholder:font-light min-h-[100px] resize-none'
                 />
@@ -138,8 +145,9 @@ const Contact = () => {
                 <Button
                   type='submit'
                   className='w-full sm:w-auto font-bold px-10 py-6 text-base rounded-full shadow-xl shadow-primary/20 hover:shadow-primary/40 group transition-all duration-300'
+                  disabled={sending}
                 >
-                  Send Message
+                  {sending ? 'Sending...' : 'Send Message'}
                   <Send className='w-4 h-4 ml-2 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform' />
                 </Button>
               </div>

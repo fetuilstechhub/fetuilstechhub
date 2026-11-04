@@ -1,20 +1,45 @@
-import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { AlertCircle, Loader2, Mail, Printer } from 'lucide-react';
+import BookingPass, { type PassStatus } from '@/components/BookingPass';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+
+type BookingDetails = {
+  status: string;
+  plan_title: string;
+  full_name: string;
+  email: string;
+  amount: number;
+  booking_date: string | null;
+  valid_until: string | null;
+};
+
+// How long to keep checking while Paystack confirms the payment.
+const MAX_CHECKS = 6;
+const CHECK_INTERVAL_MS = 3000;
+
+const passStatus = (booking: BookingDetails): PassStatus => {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+  if (booking.booking_date && today < booking.booking_date) return 'upcoming';
+  if (booking.valid_until && today > booking.valid_until) return 'expired';
+  return 'valid';
+};
+
+const passCode = (reference: string) => `FET-${reference.replace(/^fet_/, '').slice(0, 8).toUpperCase()}`;
 
 export default function Confirmation() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const [bookingDetails, setBookingDetails] = useState<any>(null);
+  const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const reference = searchParams.get('reference') || searchParams.get('trxref');
 
   useEffect(() => {
-    const fetchBooking = async () => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const fetchBooking = async (check: number) => {
       if (!reference) {
         setError('No payment reference found. Payment may not have been completed.');
         setLoading(false);
@@ -22,150 +47,110 @@ export default function Confirmation() {
       }
 
       try {
-        // Fetch booking details from backend to verify payment status
         const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/api/booking-status?reference=${reference}`
+          `${import.meta.env.VITE_API_BASE_URL}/api/booking-status?reference=${encodeURIComponent(reference)}`
         );
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch booking details');
         }
 
-        const data = await response.json();
-        setBookingDetails(data);
-        
-        if (data.status !== 'paid') {
-          setError('Payment verification pending. Please check your email for confirmation.');
+        const data: BookingDetails = await response.json();
+        if (cancelled) return;
+
+        if (data.status === 'pending' && check < MAX_CHECKS) {
+          timer = setTimeout(() => fetchBooking(check + 1), CHECK_INTERVAL_MS);
+          return;
         }
-      } catch (err: any) {
+
+        if (data.status === 'paid') {
+          setBooking(data);
+        } else {
+          setError('We have not confirmed your payment yet. If you were charged, you will get your pass by email once it is confirmed.');
+        }
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
         console.error('Error fetching booking:', err);
-        setError('Could not verify booking. Payment may still be processing.');
-      } finally {
+        setError('We could not check this pass right now. Your payment may still be processing.');
         setLoading(false);
       }
     };
 
-    fetchBooking();
+    fetchBooking(1);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [reference]);
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-12'>
-      <div className='max-w-2xl mx-auto'>
+    <div className="flex min-h-screen flex-col items-center bg-slate-50 px-4 py-10 print:bg-white print:py-0">
+      <div className="w-full max-w-md">
         {loading ? (
-          <Card className='border-slate-700 bg-slate-900/50'>
-            <CardContent className='pt-12 pb-12 text-center'>
-              <div className='inline-block animate-spin'>
-                <div className='h-8 w-8 border-2 border-orange-500 border-t-transparent rounded-full' />
-              </div>
-              <p className='mt-4 text-slate-300'>Verifying your payment...</p>
-            </CardContent>
-          </Card>
-        ) : error ? (
-          <Card className='border-slate-700 bg-slate-900/50'>
-            <CardHeader>
-              <CardTitle className='flex items-center gap-2 text-amber-500'>
-                <AlertCircle className='h-6 w-6' />
-                Payment Processing
-              </CardTitle>
-              <CardDescription>{error}</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <p className='text-sm text-slate-400'>
-                {reference && (
-                  <>
-                    <strong>Reference:</strong> {reference}
-                  </>
-                )}
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+            <p className="mt-4 font-medium text-[#0B1F3F]">Confirming your payment...</p>
+            <p className="mt-1 text-sm text-slate-500">This can take up to a minute. Please keep this page open.</p>
+          </div>
+        ) : booking && reference ? (
+          <>
+            <div className="mb-6 text-center print:hidden">
+              <h1 className="text-2xl font-extrabold tracking-tight text-[#0B1F3F]">
+                {passStatus(booking) === 'expired' ? 'This pass has expired' : "You're all set!"}
+              </h1>
+              <p className="mt-1 text-slate-600">
+                {passStatus(booking) === 'expired'
+                  ? 'Book a new pass to use the hub again.'
+                  : "Here's your pass. Show it at the hub entrance."}
               </p>
-              <p className='text-sm text-slate-400'>
-                Please check your email inbox for a confirmation message. If you don't receive it within 5 minutes,
-                contact support.
+            </div>
+
+            <BookingPass
+              status={passStatus(booking)}
+              planTitle={booking.plan_title}
+              holder={booking.full_name}
+              amount={booking.amount}
+              date={booking.booking_date}
+              validUntil={booking.valid_until}
+              code={passCode(reference)}
+              qrValue={`${window.location.origin}/booking/confirmation?reference=${encodeURIComponent(reference)}`}
+              notchClassName="bg-slate-50 print:bg-white"
+            />
+
+            <div className="mt-6 print:hidden">
+              <p className="break-words text-center text-sm text-slate-600">
+                <Mail className="mr-1.5 inline h-4 w-4 align-text-bottom text-primary" />
+                Your pass is also sent to {booking.email}
               </p>
-              <Button onClick={() => navigate('/pricing')} className='w-full bg-orange-500 hover:bg-orange-600'>
-                Return to Pricing
-              </Button>
-            </CardContent>
-          </Card>
-        ) : bookingDetails ? (
-          <Card className='border-slate-700 bg-slate-900/50 fade-in-up'>
-            <CardHeader>
-              <CardTitle className='flex items-center gap-2 text-green-500'>
-                <CheckCircle2 className='h-6 w-6' />
-                Booking Confirmed!
-              </CardTitle>
-              <CardDescription>Your payment has been successfully processed</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-6'>
-              {/* Order Summary */}
-              <div className='bg-slate-800/50 rounded-lg p-4 space-y-3'>
-                <h3 className='text-sm font-semibold text-slate-200'>Order Summary</h3>
-                <div className='space-y-2 text-sm'>
-                  <div className='flex justify-between'>
-                    <span className='text-slate-400'>Plan:</span>
-                    <span className='text-white font-medium'>{bookingDetails.plan_title}</span>
-                  </div>
-                  <div className='flex justify-between'>
-                    <span className='text-slate-400'>Name:</span>
-                    <span className='text-white font-medium'>{bookingDetails.full_name}</span>
-                  </div>
-                  <div className='flex justify-between'>
-                    <span className='text-slate-400'>Email:</span>
-                    <span className='text-white font-medium'>{bookingDetails.email}</span>
-                  </div>
-                  {bookingDetails.start_time && (
-                    <div className='flex justify-between'>
-                      <span className='text-slate-400'>Booking Date:</span>
-                      <span className='text-white font-medium'>
-                        {new Date(bookingDetails.start_time).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
-                  <div className='border-t border-slate-700 pt-2 mt-2 flex justify-between font-semibold'>
-                    <span>Total Amount:</span>
-                    <span className='text-orange-500'>₦{bookingDetails.amount?.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Reference */}
-              <div className='bg-slate-800/50 rounded-lg p-4'>
-                <h3 className='text-sm font-semibold text-slate-200 mb-2'>Payment Reference</h3>
-                <code className='text-xs text-slate-400 break-all bg-slate-900 p-2 rounded block'>
-                  {reference}
-                </code>
-              </div>
-
-              {/* Next Steps */}
-              <div className='bg-blue-500/10 border border-blue-500/20 rounded-lg p-4'>
-                <h3 className='text-sm font-semibold text-blue-400 mb-2'>What's Next?</h3>
-                <ul className='text-sm text-slate-300 space-y-1 list-disc list-inside'>
-                  <li>A confirmation email has been sent to {bookingDetails.email}</li>
-                  <li>Save your payment reference for your records</li>
-                  <li>You can now access your booked workspace or service</li>
-                </ul>
-              </div>
-
-              {/* Action Buttons */}
-              <div className='flex gap-3 pt-4'>
-                <Button onClick={() => navigate('/pricing')} variant='outline' className='flex-1 border-slate-600'>
-                  View Plans
+              <div className="mt-5 flex gap-3">
+                <Button onClick={() => window.print()} variant="outline" className="h-11 flex-1 rounded-full">
+                  <Printer className="mr-2 h-4 w-4" /> Save / Print
                 </Button>
-                <Button onClick={() => navigate('/')} className='flex-1 bg-orange-500 hover:bg-orange-600'>
-                  Back to Home
+                <Button asChild className="h-11 flex-1 rounded-full font-bold">
+                  <Link to="/">Back to home</Link>
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </>
         ) : (
-          <Card className='border-slate-700 bg-slate-900/50'>
-            <CardContent className='pt-12 pb-12 text-center'>
-              <AlertCircle className='h-12 w-12 text-slate-400 mx-auto mb-4' />
-              <p className='text-slate-300 mb-4'>Could not load booking details</p>
-              <Button onClick={() => navigate('/')} className='bg-orange-500 hover:bg-orange-600'>
-                Return Home
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
+            </div>
+            <h1 className="mt-4 text-xl font-extrabold text-[#0B1F3F]">No valid pass to show yet</h1>
+            <p className="mt-2 text-sm text-slate-600">{error}</p>
+            {reference && <code className="mt-4 block break-all rounded-lg bg-slate-100 p-2 text-xs text-slate-600">{reference}</code>}
+            <p className="mt-4 text-sm text-slate-500">
+              Still nothing after 5 minutes? Email{' '}
+              <a className="font-medium text-primary" href="mailto:fetuilstechhub@gmail.com">fetuilstechhub@gmail.com</a>{' '}
+              with this reference.
+            </p>
+            <Button asChild className="mt-6 h-11 rounded-full px-8 font-bold">
+              <Link to="/pricing">Back to pricing</Link>
+            </Button>
+          </div>
         )}
       </div>
     </div>

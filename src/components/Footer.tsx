@@ -113,10 +113,10 @@ const Footer = () => {
                 <li>Ilorin, Kwara State, Nigeria</li>
                 <li className='pt-2'>
                   <a
-                    href='mailto:info@fetuils.ng'
+                    href='mailto:fetuilstechhub@gmail.com'
                     className='hover:text-primary transition-colors'
                   >
-                    info@fetuils.ng
+                    fetuilstechhub@gmail.com
                   </a>
                 </li>
               </ul>

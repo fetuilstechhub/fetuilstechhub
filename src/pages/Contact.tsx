@@ -4,12 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { MapPin, Mail, Clock, Phone, MessageSquare } from 'lucide-react';
+import { useContactForm } from '@/hooks/use-contact-form';
 
 const Contact = () => {
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission
-  };
+  const { sending, handleSubmit } = useContactForm();
 
   const faqs = [
     {
@@ -90,7 +88,6 @@ const Contact = () => {
                   </div>
                   <div>
                     <h4 className='font-semibold mb-1'>Email</h4>
-                    <p className='text-muted-foreground'>info@fetuils.ng</p>
                     <p className='text-muted-foreground'>
                       fetuilstechhub@gmail.com
                     </p>
@@ -132,18 +129,19 @@ const Contact = () => {
               </p>
 
               <form onSubmit={handleSubmit} className='space-y-6'>
+                <input type='text' name='website' tabIndex={-1} autoComplete='off' aria-hidden='true' className='hidden' />
                 <div className='grid sm:grid-cols-2 gap-4'>
                   <div>
                     <label className='text-sm font-medium mb-2 block'>
                       First Name
                     </label>
-                    <Input placeholder='John' className='bg-background' />
+                    <Input name='firstName' required placeholder='John' className='bg-background' />
                   </div>
                   <div>
                     <label className='text-sm font-medium mb-2 block'>
                       Last Name
                     </label>
-                    <Input placeholder='Doe' className='bg-background' />
+                    <Input name='lastName' required placeholder='Doe' className='bg-background' />
                   </div>
                 </div>
 
@@ -152,6 +150,8 @@ const Contact = () => {
                     Email
                   </label>
                   <Input
+                    name='email'
+                    required
                     type='email'
                     placeholder='john@student.unilorin.edu.ng'
                     className='bg-background'
@@ -163,6 +163,7 @@ const Contact = () => {
                     Subject
                   </label>
                   <Input
+                    name='subject'
                     placeholder='How can we help?'
                     className='bg-background'
                   />
@@ -173,6 +174,8 @@ const Contact = () => {
                     Message
                   </label>
                   <Textarea
+                    name='message'
+                    required
                     placeholder='Tell us more about your inquiry...'
                     className='bg-background min-h-[150px]'
                   />
@@ -182,8 +185,9 @@ const Contact = () => {
                   type='submit'
                   className='w-full font-semibold'
                   size='lg'
+                  disabled={sending}
                 >
-                  Send Message
+                  {sending ? 'Sending...' : 'Send Message'}
                 </Button>
               </form>
             </div>

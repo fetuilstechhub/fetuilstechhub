@@ -23,6 +23,14 @@ export const workspacePlans = [
     price: 20000,
     period: '/ month',
   },
+  {
+    id: 'team_startup',
+    title: "The 'Team/Startup' Bundle",
+    subtitle: "For teams of 3–5",
+    description: "For groups of 3–5 students working together on a startup or a final year project.",
+    price: 20000,
+    period: '/ month / team',
+  },
 ];
 
 export const rentalItems = [
