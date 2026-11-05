@@ -11,6 +11,7 @@ export const emptyState = () => ({
   verify: null,
   failDbWrites: false,
   failPaystack: false,
+  failEmail: false,
 });
 
 const readBody = (req) =>
@@ -24,6 +25,7 @@ const matchesFilter = (row, key, value) => {
   const actual = String(row[key]);
   if (value.startsWith('eq.')) return actual === value.slice(3);
   if (value.startsWith('lt.')) return actual < value.slice(3);
+  if (value.startsWith('gte.')) return actual >= value.slice(4);
   if (value.startsWith('ilike.')) {
     const pattern = value.slice(6).replace(/[%*]/g, '\u0000').replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\u0000/g, '.*');
     return new RegExp(`^${pattern}$`, 'i').test(actual);
@@ -89,6 +91,7 @@ export function createFakeServices(state, port) {
       return send(200, { status: true, data: state.verify ?? { status: 'abandoned' } });
     }
     if (url.pathname === '/emails') {
+      if (state.failEmail) return send(500, { message: 'email down' });
       state.emails.push(JSON.parse(body));
       return send(200, { id: 'email_1' });
     }

@@ -16,6 +16,7 @@ import Confirmation from './pages/Confirmation';
 
 // Staff only, so customers don't download the scanner code.
 const Door = lazy(() => import('./pages/Door'));
+const Payments = lazy(() => import('./pages/Payments'));
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,14 @@ const App = () => (
             element={
               <Suspense fallback={<div className='min-h-screen bg-[#0B1F3F]' />}>
                 <Door />
+              </Suspense>
+            }
+          />
+          <Route
+            path='/door/payments'
+            element={
+              <Suspense fallback={null}>
+                <Payments />
               </Suspense>
             }
           />

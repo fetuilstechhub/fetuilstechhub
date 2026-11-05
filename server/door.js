@@ -11,12 +11,13 @@ const PHOTO_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
 const REFERENCE_RE = /^[\w.=-]{1,100}$/;
 const CODE_RE = /^FET-?([A-Z0-9]{8})$/i;
 const UNIQUE_VIOLATION = '23505';
+const WAITING_DAYS = 14;
 
 const lagosDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest();
 const safeEqual = (a, b) => crypto.timingSafeEqual(sha256(a), sha256(b));
 
-export function doorRouter({ supabase, limiter, confirmIfPending, staffPin, tokenSecret }) {
+export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staffPin, tokenSecret }) {
   const router = Router();
   const pinConfigured = typeof staffPin === 'string' && staffPin.length >= MIN_PIN_LENGTH;
   if (!pinConfigured) console.warn(`STAFF_PIN must be at least ${MIN_PIN_LENGTH} characters: door scanner is disabled`);
@@ -195,6 +196,59 @@ export function doorRouter({ supabase, limiter, confirmIfPending, staffPin, toke
         plan_title: byId.get(e.booking_id)?.plan_title ?? '',
       })),
     });
+  }));
+
+  const paymentRow = (booking) => ({
+    reference: booking.paystack_reference,
+    code: passCode(booking.paystack_reference),
+    holder: booking.full_name,
+    email: booking.email,
+    plan_title: booking.plan_title,
+    amount: booking.amount,
+    starts_on: booking.metadata?.booking_date ?? null,
+    notes: booking.metadata?.notes ?? '',
+    booked_at: booking.created_at,
+    status: booking.status,
+  });
+
+  const PAYMENT_COLUMNS = 'full_name,email,plan_title,amount,paystack_reference,metadata,created_at,status';
+
+  router.get('/payments', limiter(300), requireStaff, guarded(async (req, res) => {
+    const since = new Date(Date.now() - WAITING_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const [waiting, confirmed] = await Promise.all([
+      supabase
+        .from('bookings')
+        .select(PAYMENT_COLUMNS)
+        .eq('status', 'pending')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('bookings')
+        .select(PAYMENT_COLUMNS)
+        .eq('status', 'paid')
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+    if (waiting.error || confirmed.error) {
+      throw new Error(`Payments lookup failed: ${(waiting.error || confirmed.error).message}`);
+    }
+    return res.json({ waiting: waiting.data.map(paymentRow), confirmed: confirmed.data.map(paymentRow) });
+  }));
+
+  // Releases a pass after a person has seen the transfer in the bank account.
+  router.post('/confirm-payment', limiter(300), requireStaff, guarded(async (req, res) => {
+    const booking = await findBooking({ reference: req.body?.reference });
+    if (!booking) return res.status(404).json({ error: 'not_found' });
+    if (booking.status === 'paid') return res.json({ already_paid: true, email_sent: false, booking: paymentRow(booking) });
+    if (booking.status !== 'pending') return res.status(409).json({ error: 'not_pending' });
+
+    const result = await markPaid(booking, {
+      ...booking.metadata,
+      payment_method: 'transfer',
+      payment_confirmed_at: new Date().toISOString(),
+    });
+    return res.json({ already_paid: result.alreadyPaid, email_sent: result.emailSent, booking: paymentRow(result.booking) });
   }));
 
   return router;

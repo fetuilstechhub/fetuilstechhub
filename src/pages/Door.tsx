@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import jsQR from 'jsqr';
 import { Camera, Check, ListChecks, Loader2, LogOut, UserCheck, X } from 'lucide-react';
+import { getToken, setToken } from '@/lib/staff-auth';
 
 const API = `${import.meta.env.VITE_API_BASE_URL}/api/door`;
-const TOKEN_KEY = 'door_token';
 // Customers often keep their phone up after going green. Without this pause,
 // "Scan next" would read the same code again and show a confusing red.
 const RESCAN_PAUSE_MS = 5000;
@@ -30,22 +30,6 @@ type Screen =
   | { name: 'manual' }
   | { name: 'error'; message: string }
   | { name: 'result'; result: DoorResponse };
-
-const getToken = () => {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-};
-const setToken = (token: string | null) => {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    // Private browsing: the guard signs in again next time.
-  }
-};
 
 const time = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Africa/Lagos' }) : '';

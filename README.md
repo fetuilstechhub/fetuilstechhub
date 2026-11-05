@@ -44,17 +44,24 @@ Create `server/.env`:
 | `PORT` | API port (defaults to 8787) |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
-| `PAYSTACK_SECRET_KEY` | Paystack secret key (server only) |
+| `PAYMENT_MODE` | Leave unset for bank transfers via WhatsApp. Set to `paystack` once Paystack is live |
+| `PAYSTACK_SECRET_KEY` | Paystack secret key (server only). Only needed when `PAYMENT_MODE` is `paystack` |
 | `RESEND_API_KEY` | Resend API key |
 | `RESEND_FROM_EMAIL` | Sender address for booking emails |
 | `FRONTEND_URL` | Site URL that Paystack returns customers to |
-| `STAFF_PIN` | PIN for the door scanner at `/door`, at least 6 characters. Changing it signs out every phone |
+| `STAFF_PIN` | PIN for the door scanner at `/door` and the payments page at `/door/payments`, at least 6 characters. Changing it signs out every phone |
 
 Never commit real keys. `.env` and `.env.local` files are ignored by git.
 
 ### Database
 
 Run `supabase/schema.sql` in the Supabase SQL editor to create the `bookings` table.
+
+### Taking payments
+
+By default, customers book on the site, then finish on WhatsApp and pay by bank transfer. Staff confirm each transfer at `/door/payments`, which emails the pass.
+
+To switch to Paystack, set `PAYMENT_MODE=paystack` and `PAYSTACK_SECRET_KEY` on the API, set `VITE_PAYMENT_MODE=paystack` on the frontend, and redeploy both.
 
 ### Paystack webhook
 

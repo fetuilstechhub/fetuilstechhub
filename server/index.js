@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { PLANS, validUntil } from './plans.js';
-import { escapeHtml, passEmailHtml } from './pass-email.js';
+import { escapeHtml, passCode, passEmailHtml } from './pass-email.js';
 import { doorRouter } from './door.js';
 
 dotenv.config();
@@ -20,8 +20,12 @@ const CONTACT_TO_EMAIL = process.env.CONTACT_TO_EMAIL || 'fetuilstechhub@gmail.c
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const PAYSTACK_API_BASE = process.env.PAYSTACK_API_BASE || 'https://api.paystack.co';
 const RESEND_API_BASE = process.env.RESEND_API_BASE || 'https://api.resend.com';
+// Until Paystack is live, customers pay by bank transfer and staff confirm it at /door/payments.
+// Paystack stays fully off in this mode, so a test key can never produce a real pass.
+const ONLINE_PAYMENTS = process.env.PAYMENT_MODE === 'paystack';
 
-const missing = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'PAYSTACK_SECRET_KEY'].filter((k) => !process.env[k]);
+const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', ...(ONLINE_PAYMENTS ? ['PAYSTACK_SECRET_KEY'] : [])];
+const missing = required.filter((k) => !process.env[k]);
 if (missing.length) {
   console.error(`Missing required env vars: ${missing.join(', ')}`);
   process.exit(1);
@@ -102,9 +106,28 @@ async function sendConfirmationEmail(booking) {
   });
 }
 
-// Marks a booking paid after a confirmed Paystack charge. Safe to call repeatedly:
-// only the call that moves the booking from pending to paid sends the email.
-// Throws on database errors so the webhook can ask Paystack to retry.
+// Safe to call repeatedly: only the call that moves the booking from pending to paid
+// sends the email. Throws on database errors so the webhook can ask Paystack to retry.
+async function markPaid(booking, metadata = booking.metadata) {
+  const { data: updated, error: updateError } = await supabase
+    .from('bookings')
+    .update({ status: 'paid', metadata })
+    .eq('id', booking.id)
+    .eq('status', 'pending')
+    .select();
+  if (updateError) throw new Error(`Booking update failed: ${updateError.message}`);
+  if (!updated.length) return { booking: { ...booking, status: 'paid' }, emailSent: false, alreadyPaid: true };
+
+  try {
+    await sendConfirmationEmail(updated[0]);
+    return { booking: updated[0], emailSent: true, alreadyPaid: false };
+  } catch (err) {
+    console.error('[PAYMENT] Confirmation email failed for booking', booking.id, err.message);
+    return { booking: updated[0], emailSent: false, alreadyPaid: false };
+  }
+}
+
+// Marks a booking paid after a confirmed Paystack charge.
 async function settlePayment({ reference, paidKobo, currency }) {
   const { data: booking, error } = await supabase
     .from('bookings')
@@ -123,26 +146,12 @@ async function settlePayment({ reference, paidKobo, currency }) {
     return booking;
   }
 
-  const { data: updated, error: updateError } = await supabase
-    .from('bookings')
-    .update({ status: 'paid' })
-    .eq('id', booking.id)
-    .eq('status', 'pending')
-    .select();
-  if (updateError) throw new Error(`Booking update failed: ${updateError.message}`);
-  if (!updated.length) return { ...booking, status: 'paid' };
-
-  try {
-    await sendConfirmationEmail(updated[0]);
-  } catch (err) {
-    console.error('[PAYMENT] Confirmation email failed for booking', booking.id, err.message);
-  }
-  return updated[0];
+  return (await markPaid(booking)).booking;
 }
 
 // The webhook may be late or may have failed, so ask Paystack directly.
 async function confirmIfPending(booking) {
-  if (booking.status !== 'pending') return booking;
+  if (!ONLINE_PAYMENTS || booking.status !== 'pending') return booking;
   try {
     const verifyResponse = await fetch(
       `${PAYSTACK_API_BASE}/transaction/verify/${encodeURIComponent(booking.paystack_reference)}`,
@@ -161,6 +170,27 @@ async function confirmIfPending(booking) {
     console.error('[PAYMENT] Paystack verify failed', err.message);
   }
   return booking;
+}
+
+function whatsappMessage({ fullName, email, planTitle, amount, bookingDate, reference }) {
+  const startDate = new Date(`${bookingDate}T12:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Africa/Lagos',
+  });
+  return [
+    "Hi FETUILS TechHub, I'd like to book and pay by transfer.",
+    '',
+    `Name: ${fullName.replace(/\s+/g, ' ')}`,
+    `Email: ${email}`,
+    `Plan: ${planTitle}`,
+    `Amount: ₦${amount.toLocaleString('en-NG')}`,
+    `Start date: ${startDate}`,
+    `Booking code: ${passCode(reference)}`,
+    '',
+    'Please send me your account details.',
+  ].join('\n');
 }
 
 app.post('/api/create-transaction', limiter(30), async (req, res) => {
@@ -209,6 +239,20 @@ app.post('/api/create-transaction', limiter(30), async (req, res) => {
     if (insertError) {
       console.error('[CREATE-TRANSACTION] Booking insert failed', insertError.message);
       return res.status(500).json({ error: 'We could not save your booking. Please try again.' });
+    }
+
+    if (!ONLINE_PAYMENTS) {
+      return res.json({
+        reference,
+        whatsapp_message: whatsappMessage({
+          fullName,
+          email,
+          planTitle: plan.title,
+          amount: plan.price,
+          bookingDate,
+          reference,
+        }),
+      });
     }
 
     const paystackResponse = await fetch(`${PAYSTACK_API_BASE}/transaction/initialize`, {
@@ -274,6 +318,7 @@ app.get('/api/booking-status', limiter(120), async (req, res) => {
 
 // Paystack webhook: needs the raw body to verify the signature.
 app.post('/api/webhook', async (req, res) => {
+  if (!ONLINE_PAYMENTS) return res.status(200).send('ignored');
   try {
     const signature = req.header('x-paystack-signature');
     if (!Buffer.isBuffer(req.body) || !signature) return res.status(401).send('invalid signature');
@@ -337,6 +382,7 @@ app.use(
     supabase,
     limiter,
     confirmIfPending,
+    markPaid,
     staffPin: process.env.STAFF_PIN,
     tokenSecret: SUPABASE_SERVICE_ROLE_KEY,
   }),

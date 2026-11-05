@@ -32,6 +32,7 @@ before(async () => {
     env: {
       ...process.env,
       PORT: String(PORT),
+      PAYMENT_MODE: 'paystack',
       SUPABASE_URL: base,
       SUPABASE_SERVICE_ROLE_KEY: 'service_key',
       PAYSTACK_SECRET_KEY: SECRET,

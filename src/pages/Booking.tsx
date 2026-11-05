@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Check, Loader2, Lock } from 'lucide-react';
+import { Check, Loader2, Lock, MessageCircle } from 'lucide-react';
 import { workspacePlans, rentalItems } from '@/lib/plans';
+import { ONLINE_PAYMENTS, WHATSAPP_NUMBERS, whatsappLink } from '@/lib/payment';
 import BookingPass from '@/components/BookingPass';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -50,6 +51,7 @@ const Booking = () => {
   const [notes, setNotes] = useState('');
   const [planId, setPlanId] = useState(workspacePlans[0].id);
   const [loading, setLoading] = useState(false);
+  const [sentMessage, setSentMessage] = useState('');
   const location = useLocation();
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || '';
@@ -81,14 +83,23 @@ const Booking = () => {
 
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        showError(json?.error || 'We could not start your payment. Please try again.');
+        showError(json?.error || 'We could not save your booking. Please try again.');
         return;
       }
 
       if (json.authorization_url) {
         window.location.href = json.authorization_url;
+      } else if (json.whatsapp_message) {
+        setSentMessage(json.whatsapp_message);
+        window.scrollTo({ top: 0 });
+        // A new tab keeps the next steps on screen. Phones often block it this long
+        // after the tap, so fall back to this tab.
+        const link = whatsappLink(json.whatsapp_message);
+        const tab = window.open(link, '_blank');
+        if (tab) tab.opener = null;
+        else window.location.href = link;
       } else {
-        showError('We could not start your payment. Please try again.');
+        showError('We could not save your booking. Please try again.');
       }
     } catch (err) {
       console.error(err);
@@ -107,11 +118,36 @@ const Booking = () => {
           <div className="mb-10 max-w-2xl">
             <h1 className="text-3xl font-extrabold tracking-tight text-[#0B1F3F] md:text-4xl">Get your hub pass</h1>
             <p className="mt-3 text-slate-600">
-              Choose a plan and pay online. We'll email your pass, and you show it at the entrance when you arrive.
+              {ONLINE_PAYMENTS
+                ? "Choose a plan and pay online. We'll email your pass, and you show it at the entrance when you arrive."
+                : "Choose a plan, then finish on WhatsApp and pay by transfer. We'll email your pass once your payment is confirmed, and you show it at the entrance when you arrive."}
             </p>
           </div>
 
           <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
+            {sentMessage ? (
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
+                <h2 className="text-2xl font-extrabold text-[#0B1F3F]">Almost done. Finish on WhatsApp</h2>
+                <ol className="mt-5 space-y-3 text-slate-700">
+                  <li><strong>1.</strong> Press send on the message we've written for you.</li>
+                  <li><strong>2.</strong> Our team will send you the account details to pay into.</li>
+                  <li><strong>3.</strong> Once your payment is confirmed, we'll email your pass to <strong className="break-words">{email}</strong>.</li>
+                </ol>
+                <a
+                  href={whatsappLink(sentMessage)}
+                  className="mt-6 flex h-12 items-center justify-center gap-2 rounded-full bg-[#128C3E] px-6 font-bold text-white hover:bg-[#0F7A36]"
+                >
+                  <MessageCircle className="h-5 w-5" /> Open WhatsApp
+                </a>
+                <p className="mt-4 text-center text-sm text-slate-500">
+                  Can't get through? Try{' '}
+                  <a className="font-medium text-primary" href={whatsappLink(sentMessage, WHATSAPP_NUMBERS[1])}>
+                    our other number
+                  </a>
+                  .
+                </p>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
                 <StepHeading step={1} title="Choose your plan" />
@@ -184,18 +220,26 @@ const Booking = () => {
                   <Button type="submit" size="lg" className="h-12 w-full rounded-full px-8 font-bold sm:w-auto" disabled={loading}>
                     {loading ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting to Paystack...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {ONLINE_PAYMENTS ? 'Connecting to Paystack...' : 'Saving your booking...'}
                       </>
-                    ) : (
+                    ) : ONLINE_PAYMENTS ? (
                       `Pay ₦${plan.price.toLocaleString()}`
+                    ) : (
+                      'Continue on WhatsApp'
                     )}
                   </Button>
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-white/60 sm:justify-end">
-                    <Lock className="h-3 w-3" /> Secure payment by Paystack
-                  </div>
+                  {ONLINE_PAYMENTS ? (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-white/60 sm:justify-end">
+                      <Lock className="h-3 w-3" /> Secure payment by Paystack
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-white/60">We'll send you account details on WhatsApp</div>
+                  )}
                 </div>
               </div>
             </form>
+            )}
 
             <aside className="lg:sticky lg:top-24">
               <BookingPass

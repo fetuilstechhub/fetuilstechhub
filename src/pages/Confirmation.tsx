@@ -14,7 +14,7 @@ type BookingDetails = {
   valid_until: string | null;
 };
 
-// How long to keep checking while Paystack confirms the payment.
+// How long to keep checking while the payment is confirmed.
 const MAX_CHECKS = 6;
 const CHECK_INTERVAL_MS = 3000;
 
@@ -66,7 +66,7 @@ export default function Confirmation() {
         if (data.status === 'paid') {
           setBooking(data);
         } else {
-          setError('We have not confirmed your payment yet. If you were charged, you will get your pass by email once it is confirmed.');
+          setError('We have not confirmed your payment yet. You will get your pass by email once it is confirmed.');
         }
         setLoading(false);
       } catch (err) {
@@ -143,7 +143,7 @@ export default function Confirmation() {
             <p className="mt-2 text-sm text-slate-600">{error}</p>
             {reference && <code className="mt-4 block break-all rounded-lg bg-slate-100 p-2 text-xs text-slate-600">{reference}</code>}
             <p className="mt-4 text-sm text-slate-500">
-              Still nothing after 5 minutes? Email{' '}
+              Already paid and still no pass? Email{' '}
               <a className="font-medium text-primary" href="mailto:fetuilstechhub@gmail.com">fetuilstechhub@gmail.com</a>{' '}
               with this reference.
             </p>

@@ -39,6 +39,7 @@ async function startServer(port, extraEnv) {
     env: {
       ...process.env,
       PORT: String(port),
+      PAYMENT_MODE: 'paystack',
       SUPABASE_URL: base,
       SUPABASE_SERVICE_ROLE_KEY: 'service_key',
       PAYSTACK_SECRET_KEY: 'test_secret',
