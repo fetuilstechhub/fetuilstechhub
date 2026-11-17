@@ -14,11 +14,13 @@ const PORT = 18807;
 const FAKE_PORT = 18808;
 const API = `http://127.0.0.1:${PORT}`;
 const PIN = '482913';
+const ADMIN_PIN = '73915508';
 
 const state = emptyState();
 const fake = createFakeServices(state, FAKE_PORT);
 let server;
 let token;
+let adminToken;
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 const valid = { full_name: 'Ada Obi', email: 'ada@example.com', booking_date: today, plan_id: 'daily' };
@@ -30,9 +32,11 @@ const post = (route, body, auth) =>
     body: JSON.stringify(body),
   });
 const book = async (body = valid) => (await post('/api/create-transaction', body)).json();
-const confirm = (reference, auth = token) => post('/api/door/confirm-payment', { reference }, auth);
+const confirm = (reference, auth = adminToken) => post('/api/admin/confirm-payment', { reference }, auth);
 const payments = async () =>
-  (await fetch(`${API}/api/door/payments`, { headers: { Authorization: `Bearer ${token}` } })).json();
+  (await fetch(`${API}/api/admin/payments`, { headers: { Authorization: `Bearer ${adminToken}` } })).json();
+const paidBookings = async () =>
+  (await fetch(`${API}/api/admin/bookings?status=paid`, { headers: { Authorization: `Bearer ${adminToken}` } })).json();
 
 before(async () => {
   await new Promise((resolve) => fake.listen(FAKE_PORT, resolve));
@@ -54,6 +58,7 @@ before(async () => {
       RESEND_FROM_EMAIL: 'test@fetuils.ng',
       FRONTEND_URL: 'https://fetuils.ng',
       STAFF_PIN: PIN,
+      ADMIN_PIN,
     },
     stdio: 'ignore',
   });
@@ -66,6 +71,8 @@ before(async () => {
   }
   token = (await (await post('/api/door/login', { pin: PIN })).json()).token;
   assert.ok(token);
+  adminToken = (await (await post('/api/admin/login', { pin: ADMIN_PIN })).json()).token;
+  assert.ok(adminToken);
 });
 
 after(() => {
@@ -193,14 +200,15 @@ test('staff see every event with its guest count and guest list', async () => {
   const { slug } = await (await setupEvent({ reference, title: 'Tech Summit', start_time: later() })).json();
   await register(slug, { full_name: 'Ngozi', email: 'ngozi@example.com' });
   await register(slug, { full_name: 'Musa', email: 'musa@example.com' });
-  assert.equal((await fetch(`${API}/api/door/events`)).status, 401);
-  const auth = { headers: { Authorization: `Bearer ${token}` } };
-  const { events } = await (await fetch(`${API}/api/door/events`, auth)).json();
+  assert.equal((await fetch(`${API}/api/admin/events`)).status, 401);
+  assert.equal((await fetch(`${API}/api/admin/events`, { headers: { Authorization: `Bearer ${token}` } })).status, 401);
+  const auth = { headers: { Authorization: `Bearer ${adminToken}` } };
+  const { events } = await (await fetch(`${API}/api/admin/events`, auth)).json();
   assert.equal(events.length, 1);
   assert.equal(events[0].guests, 2);
   assert.equal(events[0].organiser_email, 'tola@example.com');
-  assert.equal((await fetch(`${API}/api/door/events/${events[0].id}/guests`)).status, 401);
-  const { guests } = await (await fetch(`${API}/api/door/events/${events[0].id}/guests`, auth)).json();
+  assert.equal((await fetch(`${API}/api/admin/events/${events[0].id}/guests`)).status, 401);
+  const { guests } = await (await fetch(`${API}/api/admin/events/${events[0].id}/guests`, auth)).json();
   assert.deepEqual(guests.map((g) => g.name), ['Ngozi', 'Musa']);
 });
 
@@ -224,9 +232,12 @@ test('Paystack cannot release a pass in this mode', async () => {
 
 test('payment screens need a staff sign-in', async () => {
   const { reference } = await book();
-  assert.equal((await fetch(`${API}/api/door/payments`)).status, 401);
+  assert.equal((await fetch(`${API}/api/admin/payments`)).status, 401);
+  assert.equal((await fetch(`${API}/api/admin/payments`, { headers: { Authorization: `Bearer ${token}` } })).status, 401);
+  assert.equal((await confirm(reference, token)).status, 401);
   assert.equal((await confirm(reference, 'abc.def')).status, 401);
-  assert.equal((await post('/api/door/confirm-payment', { reference })).status, 401);
+  assert.equal((await post('/api/admin/confirm-payment', { reference })).status, 401);
+  assert.equal((await post('/api/door/confirm-payment', { reference }, token)).status, 404);
   assert.equal(state.bookings[0].status, 'pending');
 });
 
@@ -294,11 +305,130 @@ test('the list shows recent waiting bookings and confirmed ones', async () => {
   state.bookings[2].created_at = new Date(Date.now() - 15 * 86_400_000).toISOString();
   await confirm(first.reference);
 
-  const { waiting, confirmed } = await payments();
+  const { waiting } = await payments();
+  const { bookings: confirmed } = await paidBookings();
   assert.deepEqual(waiting.map((p) => p.reference), [second.reference]);
   assert.equal(waiting[0].notes, 'Arriving at noon');
   assert.equal(waiting[0].amount, 1500);
   assert.deepEqual(confirmed.map((p) => p.reference), [first.reference]);
   assert.ok(!JSON.stringify(waiting).includes(old.reference));
   assert.equal(waiting[0].id, undefined);
+});
+
+// ---------------- Admin ----------------
+const adminGet = async (route) =>
+  (await fetch(`${API}/api/admin/${route}`, { headers: { Authorization: `Bearer ${adminToken}` } })).json();
+const adminPost = (route, body) => post(`/api/admin/${route}`, body, adminToken);
+
+test('the admin needs its own PIN: the door PIN never opens it', async () => {
+  assert.equal((await post('/api/admin/login', { pin: PIN })).status, 401);
+  assert.equal((await post('/api/admin/login', { pin: 'nope' })).status, 401);
+  for (const route of ['overview', 'payments', 'bookings', 'check-ins', 'events']) {
+    assert.equal((await fetch(`${API}/api/admin/${route}`)).status, 401, route);
+    assert.equal((await fetch(`${API}/api/admin/${route}`, { headers: { Authorization: `Bearer ${token}` } })).status, 401, route);
+  }
+  // The admin token does not open the door scanner either.
+  assert.equal((await post('/api/door/scan', { reference: 'fet_x' }, adminToken)).status, 401);
+});
+
+test('staff add an event for an organiser who already paid, in one step', async () => {
+  const res = await adminPost('events', {
+    organiser_name: 'Tola Host', organiser_email: 'Tola@Example.com', date: today,
+    title: 'Builders Meetup', start_time: later(), description: 'Talks',
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.event.slug, /^builders-meetup-[0-9a-f]{4}$/);
+  assert.equal(body.email_sent, true);
+  assert.equal(state.bookings[0].status, 'paid');
+  assert.equal(state.bookings[0].plan_id, 'event_hall');
+  assert.equal(state.bookings[0].amount, 50000);
+  assert.equal(state.bookings[0].email, 'tola@example.com');
+  assert.equal(state.emails[0].to, 'tola@example.com');
+  assert.ok(state.emails[0].html.includes('/events/setup?reference='));
+  const page = await (await fetch(`${API}/api/events/${body.event.slug}`)).json();
+  assert.equal(page.title, 'Builders Meetup');
+  assert.equal((await register(body.event.slug, { full_name: 'Ngozi', email: 'ngozi@example.com' })).status, 200);
+
+  assert.equal((await adminPost('events', { organiser_name: 'A', organiser_email: 'bad', date: today, title: 'X Event', start_time: '10:00' })).status, 400);
+  assert.equal((await adminPost('events', { organiser_name: 'A', organiser_email: 'a@b.co', date: today, title: 'X', start_time: '10:00' })).status, 400);
+});
+
+test('staff add bookings by hand, with or without payment, and can set the amount', async () => {
+  const unpaid = await (await adminPost('bookings', { plan_id: 'daily', full_name: 'Walk In', email: 'walk@example.com', date: today })).json();
+  assert.equal(unpaid.booking.status, 'pending');
+  assert.equal(state.emails.length, 0);
+  const paid = await (await adminPost('bookings', { plan_id: 'weekly', full_name: 'FET Student', email: 'fet@example.com', date: today, amount: 5850, paid: true })).json();
+  assert.equal(paid.booking.status, 'paid');
+  assert.equal(paid.booking.amount, 5850);
+  assert.equal(paid.email_sent, true);
+  assert.equal(state.emails.length, 1);
+  assert.equal((await adminPost('bookings', { plan_id: 'free', full_name: 'X', email: 'x@y.co', date: today })).status, 400);
+  assert.equal((await adminPost('bookings', { plan_id: 'daily', full_name: 'X', email: 'x@y.co', date: today, amount: -5 })).status, 400);
+});
+
+test('staff resend a pass and cancel unpaid bookings only', async () => {
+  const { reference: unpaid } = await book();
+  const { reference: done } = await book({ ...valid, full_name: 'Paid Person' });
+  await confirm(done);
+  const before = state.emails.length;
+  assert.equal((await (await adminPost('bookings/resend', { reference: done })).json()).email_sent, true);
+  assert.equal(state.emails.length, before + 1);
+  assert.equal((await adminPost('bookings/resend', { reference: unpaid })).status, 409);
+  assert.equal((await adminPost('bookings/cancel', { reference: done })).status, 409);
+  assert.equal((await adminPost('bookings/cancel', { reference: unpaid })).status, 200);
+  assert.equal(state.bookings.find((b) => b.paystack_reference === unpaid).status, 'cancelled');
+  const { waiting } = await payments();
+  assert.equal(waiting.length, 0);
+  const scan = await (await post('/api/door/scan', { reference: unpaid }, token)).json();
+  assert.equal(scan.verdict, 'deny');
+});
+
+test('the overview adds up money received, waiting payments, check-ins and events', async () => {
+  const { reference: a } = await book();
+  const { reference: b } = await book({ ...valid, plan_id: 'weekly' });
+  await book({ ...valid, full_name: 'Still Waiting' });
+  await confirm(a);
+  await confirm(b);
+  await post('/api/door/scan', { reference: a }, token);
+  await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() });
+
+  const o = await adminGet('overview');
+  assert.equal(o.revenue.today, 1500 + 6500 + 50000);
+  assert.equal(o.revenue.month, 58000);
+  assert.equal(o.revenue.month_payments, 3);
+  assert.equal(o.waiting_payments, 1);
+  assert.equal(o.check_ins_today, 1);
+  assert.equal(o.active_passes, 3);
+  assert.equal(o.daily.length, 14);
+  assert.equal(o.daily[13].amount, 58000);
+  assert.equal(o.upcoming_events.length, 1);
+  assert.equal(o.by_plan[0].plan, 'Event Hall');
+
+  const checks = await adminGet('check-ins');
+  assert.equal(checks.entries.length, 1);
+  assert.equal(checks.entries[0].holder, 'Ada Obi');
+});
+
+test('staff can take an event page down with its guest list', async () => {
+  const { event } = await (await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() })).json();
+  await register(event.slug, { full_name: 'Ngozi', email: 'ngozi@example.com' });
+  const res = await fetch(`${API}/api/admin/events/${event.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } });
+  assert.equal(res.status, 200);
+  assert.equal(state.events.length, 0);
+  assert.equal(state.event_registrations.length, 0);
+  assert.equal((await fetch(`${API}/api/events/${event.slug}`)).status, 404);
+  assert.equal(state.bookings[0].status, 'paid');
+});
+
+test('staff see every attendee across all events', async () => {
+  const one = (await (await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() })).json()).event;
+  const two = (await (await adminPost('events', { organiser_name: 'Musa', organiser_email: 'm@e.co', date: today, title: 'Design Jam', start_time: later() })).json()).event;
+  await register(one.slug, { full_name: 'Ngozi', email: 'ngozi@example.com' });
+  await register(two.slug, { full_name: 'Ngozi', email: 'ngozi@example.com' });
+  await register(two.slug, { full_name: 'Bayo', email: 'bayo@example.com' });
+  assert.equal((await fetch(`${API}/api/admin/guests`, { headers: { Authorization: `Bearer ${token}` } })).status, 401);
+  const { guests } = await adminGet('guests');
+  assert.equal(guests.length, 3);
+  assert.deepEqual(guests.map((g) => g.event_title).sort(), ['Design Jam', 'Design Jam', 'Summit Day']);
 });

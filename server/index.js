@@ -8,6 +8,7 @@ import { PLANS, validUntil } from './plans.js';
 import { escapeHtml, passCode, passEmailHtml } from './pass-email.js';
 import { doorRouter } from './door.js';
 import { eventsRouter } from './events.js';
+import { adminRouter } from './admin.js';
 
 dotenv.config();
 
@@ -388,13 +389,25 @@ app.use(
     supabase,
     limiter,
     confirmIfPending,
-    markPaid,
     staffPin: process.env.STAFF_PIN,
     tokenSecret: SUPABASE_SERVICE_ROLE_KEY,
   }),
 );
 
 app.use('/api/events', eventsRouter({ supabase, limiter, sendEmail, frontendUrl: FRONTEND_URL }));
+
+app.use(
+  '/api/admin',
+  adminRouter({
+    supabase,
+    limiter,
+    markPaid,
+    sendConfirmationEmail,
+    adminPin: process.env.ADMIN_PIN,
+    tokenSecret: SUPABASE_SERVICE_ROLE_KEY,
+    staffPin: process.env.STAFF_PIN,
+  }),
+);
 
 // Bad JSON and similar errors: reply with JSON rather than an HTML stack trace.
 app.use((err, req, res, next) => {

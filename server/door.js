@@ -1,40 +1,23 @@
 // Door scanner API. The system decides who gets in; the guard follows the colour.
-import crypto from 'crypto';
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import { pinAuth } from './auth.js';
 import { passCode } from './pass-email.js';
 import { PLANS, validUntil } from './plans.js';
-import { publicEvent } from './events.js';
 
-const TOKEN_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const MIN_PIN_LENGTH = 6;
 const MAX_PHOTO_LENGTH = 80_000;
 const PHOTO_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
 const REFERENCE_RE = /^[\w.=-]{1,100}$/;
 const CODE_RE = /^FET-?([A-Z0-9]{8})$/i;
 const UNIQUE_VIOLATION = '23505';
-const WAITING_DAYS = 14;
 
 const lagosDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
-const sha256 = (value) => crypto.createHash('sha256').update(value).digest();
-const safeEqual = (a, b) => crypto.timingSafeEqual(sha256(a), sha256(b));
 
-export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staffPin, tokenSecret }) {
+export function doorRouter({ supabase, limiter, confirmIfPending, staffPin, tokenSecret }) {
   const router = Router();
-  const pinConfigured = typeof staffPin === 'string' && staffPin.length >= MIN_PIN_LENGTH;
-  if (!pinConfigured) console.warn(`STAFF_PIN must be at least ${MIN_PIN_LENGTH} characters: door scanner is disabled`);
-
   // Changing STAFF_PIN signs out every phone, which is how a leaked PIN gets revoked.
-  const sign = (expires) =>
-    crypto.createHmac('sha256', `${staffPin}:${tokenSecret}`).update(`door:${expires}`).digest('hex');
-
-  const requireStaff = (req, res, next) => {
-    const [expires, signature] = (req.header('authorization') || '').replace(/^Bearer /, '').split('.');
-    if (!pinConfigured || !expires || !signature || Number(expires) < Date.now() || !safeEqual(signature, sign(expires))) {
-      return res.status(401).json({ error: 'sign_in_required' });
-    }
-    return next();
-  };
+  const auth = pinAuth({ pin: staffPin, secret: tokenSecret, scope: 'door', minLength: MIN_PIN_LENGTH, name: 'STAFF_PIN', limiter });
+  const requireStaff = auth.requireAuth;
 
   async function findBooking({ reference, code }) {
     if (typeof reference === 'string' && REFERENCE_RE.test(reference)) {
@@ -135,26 +118,7 @@ export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staf
     }
   };
 
-  // Counts wrong PINs from every device together, so guessing from many
-  // connections at once is still slow. Phones already signed in are unaffected.
-  const wrongPinLimit = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 30,
-    keyGenerator: () => 'all-devices',
-    skipSuccessfulRequests: true,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many wrong PINs. Try again in 15 minutes.' },
-  });
-
-  router.post('/login', limiter(10), wrongPinLimit, (req, res) => {
-    if (!pinConfigured) return res.status(503).json({ error: 'The door scanner is not set up yet.' });
-    if (typeof req.body?.pin !== 'string' || !safeEqual(req.body.pin, staffPin)) {
-      return res.status(401).json({ error: 'Wrong PIN.' });
-    }
-    const expires = String(Date.now() + TOKEN_LIFETIME_MS);
-    return res.json({ token: `${expires}.${sign(expires)}` });
-  });
+  router.post('/login', ...auth.login('The door scanner is not set up yet.'));
 
   router.post('/scan', limiter(300), requireStaff, guarded(async (req, res) => {
     const today = lagosDate();
@@ -210,86 +174,6 @@ export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staf
         plan_title: byId.get(e.booking_id)?.plan_title ?? '',
       })),
     });
-  }));
-
-  const paymentRow = (booking) => ({
-    reference: booking.paystack_reference,
-    code: passCode(booking.paystack_reference),
-    holder: booking.full_name,
-    email: booking.email,
-    plan_id: booking.plan_id,
-    plan_title: booking.plan_title,
-    amount: booking.amount,
-    starts_on: booking.metadata?.booking_date ?? null,
-    notes: booking.metadata?.notes ?? '',
-    booked_at: booking.created_at,
-    status: booking.status,
-  });
-
-  const PAYMENT_COLUMNS = 'full_name,email,plan_id,plan_title,amount,paystack_reference,metadata,created_at,status';
-
-  router.get('/payments', limiter(300), requireStaff, guarded(async (req, res) => {
-    const since = new Date(Date.now() - WAITING_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    const [waiting, confirmed] = await Promise.all([
-      supabase
-        .from('bookings')
-        .select(PAYMENT_COLUMNS)
-        .eq('status', 'pending')
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('bookings')
-        .select(PAYMENT_COLUMNS)
-        .eq('status', 'paid')
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ]);
-    if (waiting.error || confirmed.error) {
-      throw new Error(`Payments lookup failed: ${(waiting.error || confirmed.error).message}`);
-    }
-    return res.json({ waiting: waiting.data.map(paymentRow), confirmed: confirmed.data.map(paymentRow) });
-  }));
-
-  // Releases a pass after a person has seen the transfer in the bank account.
-  router.post('/confirm-payment', limiter(300), requireStaff, guarded(async (req, res) => {
-    const booking = await findBooking({ reference: req.body?.reference });
-    if (!booking) return res.status(404).json({ error: 'not_found' });
-    if (booking.status === 'paid') return res.json({ already_paid: true, email_sent: false, booking: paymentRow(booking) });
-    if (booking.status !== 'pending') return res.status(409).json({ error: 'not_pending' });
-
-    const result = await markPaid(booking, {
-      ...booking.metadata,
-      payment_method: 'transfer',
-      payment_confirmed_at: new Date().toISOString(),
-    });
-    return res.json({ already_paid: result.alreadyPaid, email_sent: result.emailSent, booking: paymentRow(result.booking) });
-  }));
-
-  router.get('/events', limiter(300), requireStaff, guarded(async (req, res) => {
-    const { data: events, error } = await supabase.from('events').select('*').order('starts_at', { ascending: false }).limit(100);
-    if (error) throw new Error(`Events lookup failed: ${error.message}`);
-    const ids = events.map((e) => e.id);
-    const { data: guests, error: guestsError } = ids.length
-      ? await supabase.from('event_registrations').select('event_id').in('event_id', ids)
-      : { data: [], error: null };
-    if (guestsError) throw new Error(`Guests lookup failed: ${guestsError.message}`);
-    const counts = new Map();
-    for (const g of guests) counts.set(g.event_id, (counts.get(g.event_id) ?? 0) + 1);
-    return res.json({
-      events: events.map((e) => ({ ...publicEvent(e), id: e.id, organiser_email: e.organiser_email, guests: counts.get(e.id) ?? 0 })),
-    });
-  }));
-
-  router.get('/events/:id/guests', limiter(300), requireStaff, guarded(async (req, res) => {
-    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
-    const { data, error } = await supabase
-      .from('event_registrations')
-      .select('full_name,email,created_at')
-      .eq('event_id', req.params.id)
-      .order('created_at', { ascending: true });
-    if (error) throw new Error(`Guests lookup failed: ${error.message}`);
-    return res.json({ guests: data.map((g) => ({ name: g.full_name, email: g.email, registered_at: g.created_at })) });
   }));
 
   return router;

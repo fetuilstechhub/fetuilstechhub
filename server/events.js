@@ -28,6 +28,46 @@ const slugify = (title) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 50) || 'event';
 
+// Checks an organiser's or admin's event details. Returns the clean values or an error message.
+export function eventDetails(body, date) {
+  const title = oneLine(text(body.title, 120));
+  const description = text(body.description, 2000);
+  const startTime = text(body.start_time, 5);
+  if (title.length < 3) return { error: 'Please give the event a name.' };
+  if (!TIME_RE.test(startTime)) return { error: 'Please choose a start time.' };
+  if (!date) return { error: 'This booking has no event date. Please contact the hub.' };
+  const startsAt = eventStartsAt(date, startTime);
+  if (Date.now() >= Date.parse(startsAt) + REGISTRATION_CLOSES_AFTER_MS) return { error: 'This event time has already passed.' };
+  return { title, description, startsAt };
+}
+
+// Creates the event page for a booking with a unique link. Returns null if the
+// booking already has one, for example when two saves happen at once.
+export async function insertEvent(supabase, booking, { title, description, startsAt }) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const slug = `${slugify(title)}-${crypto.randomBytes(2).toString('hex')}`;
+    const { data, error } = await supabase
+      .from('events')
+      .insert([{
+        booking_id: booking.id,
+        slug,
+        title,
+        description,
+        starts_at: startsAt,
+        organiser_name: booking.full_name,
+        organiser_email: booking.email,
+      }])
+      .select()
+      .single();
+    if (!error) return data;
+    if (error.code !== UNIQUE_VIOLATION) throw new Error(`Event insert failed: ${error.message}`);
+    const { data: existing, error: lookupError } = await supabase.from('events').select('id').eq('booking_id', booking.id).maybeSingle();
+    if (lookupError) throw new Error(`Event lookup failed: ${lookupError.message}`);
+    if (existing) return null;
+  }
+  throw new Error('Could not create a unique event link');
+}
+
 export const publicEvent = (event) => ({
   slug: event.slug,
   title: event.title,
@@ -85,17 +125,9 @@ export function eventsRouter({ supabase, limiter, sendEmail, frontendUrl }) {
     const found = await organiserBooking(body.reference);
     if (found.error) return res.status(found.error[0]).json({ error: found.error[1] });
 
-    const title = oneLine(text(body.title, 120));
-    const description = text(body.description, 2000);
-    const startTime = text(body.start_time, 5);
-    if (title.length < 3) return res.status(400).json({ error: 'Please give your event a name.' });
-    if (!TIME_RE.test(startTime)) return res.status(400).json({ error: 'Please choose a start time.' });
-    if (!found.date) return res.status(400).json({ error: 'This booking has no event date. Please contact the hub.' });
-
-    const startsAt = eventStartsAt(found.date, startTime);
-    if (Date.now() >= Date.parse(startsAt) + REGISTRATION_CLOSES_AFTER_MS) {
-      return res.status(400).json({ error: 'This event time has already passed.' });
-    }
+    const details = eventDetails(body, found.date);
+    if (details.error) return res.status(400).json({ error: details.error });
+    const { title, description, startsAt } = details;
 
     if (found.event) {
       const { data, error } = await supabase
@@ -108,28 +140,11 @@ export function eventsRouter({ supabase, limiter, sendEmail, frontendUrl }) {
       return res.json(publicEvent(data));
     }
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const slug = `${slugify(title)}-${crypto.randomBytes(2).toString('hex')}`;
-      const { data, error } = await supabase
-        .from('events')
-        .insert([{
-          booking_id: found.booking.id,
-          slug,
-          title,
-          description,
-          starts_at: startsAt,
-          organiser_name: found.booking.full_name,
-          organiser_email: found.booking.email,
-        }])
-        .select()
-        .single();
-      if (!error) return res.json(publicEvent(data));
-      if (error.code !== UNIQUE_VIOLATION) throw new Error(`Event insert failed: ${error.message}`);
-      // Two saves at once for the same booking: return the one that won.
-      const again = await organiserBooking(body.reference);
-      if (again.event) return res.json(publicEvent(again.event));
-    }
-    throw new Error('Could not create a unique event link');
+    const created = await insertEvent(supabase, found.booking, details);
+    if (created) return res.json(publicEvent(created));
+    // Two saves at once for the same booking: return the one that won.
+    const again = await organiserBooking(body.reference);
+    return res.json(publicEvent(again.event));
   }));
 
   router.get('/:slug', limiter(600), guarded(async (req, res) => {
