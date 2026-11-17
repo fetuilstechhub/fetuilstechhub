@@ -9,6 +9,7 @@ import { escapeHtml, passCode, passEmailHtml } from './pass-email.js';
 import { doorRouter } from './door.js';
 import { eventsRouter } from './events.js';
 import { adminRouter } from './admin.js';
+import { emailProviders, sendEmail } from './email.js';
 
 dotenv.config();
 
@@ -16,12 +17,9 @@ const PORT = process.env.PORT || 8787;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'FETUILS TechHub <noreply@fetuils.ng>';
 const CONTACT_TO_EMAIL = process.env.CONTACT_TO_EMAIL || 'fetuilstechhub@gmail.com';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const PAYSTACK_API_BASE = process.env.PAYSTACK_API_BASE || 'https://api.paystack.co';
-const RESEND_API_BASE = process.env.RESEND_API_BASE || 'https://api.resend.com';
 // Until Paystack is live, customers pay by bank transfer and staff confirm it at /door/payments.
 // Paystack stays fully off in this mode, so a test key can never produce a real pass.
 const ONLINE_PAYMENTS = process.env.PAYMENT_MODE === 'paystack';
@@ -32,8 +30,10 @@ if (missing.length) {
   console.error(`Missing required env vars: ${missing.join(', ')}`);
   process.exit(1);
 }
-if (!RESEND_API_KEY) {
-  console.warn('RESEND_API_KEY is not set: confirmation emails and the contact form will not work');
+if (!emailProviders().length) {
+  console.warn('No email provider is set up: confirmation emails and the contact form will not work');
+} else {
+  console.log(`[EMAIL] Sending with ${emailProviders().join(', then ')}`);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -91,29 +91,6 @@ app.use(express.json());
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
-
-// Resend allows only a few emails per second, so when many guests register at once
-// some sends are refused with 429. Wait and retry those, and brief server errors too.
-async function sendEmail(payload) {
-  if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set');
-  const ATTEMPTS = 4;
-  for (let attempt = 1; ; attempt++) {
-    const response = await fetch(`${RESEND_API_BASE}/emails`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: RESEND_FROM_EMAIL, ...payload }),
-    });
-    if (response.ok) return;
-    const detail = await response.text().catch(() => '');
-    const retryable = response.status === 429 || response.status >= 500;
-    if (!retryable || attempt >= ATTEMPTS) {
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-    const retryAfter = Number(response.headers.get('retry-after'));
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 600 * attempt + Math.random() * 400;
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-  }
-}
 
 async function sendConfirmationEmail(booking) {
   await sendEmail({

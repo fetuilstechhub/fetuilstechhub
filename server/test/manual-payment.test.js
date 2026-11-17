@@ -25,13 +25,16 @@ let adminToken;
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 const valid = { full_name: 'Ada Obi', email: 'ada@example.com', booking_date: today, plan_id: 'daily' };
 
-const post = (route, body, auth) =>
+const post = (route, body, auth, extraHeaders = {}) =>
   fetch(`${API}${route}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}), ...extraHeaders },
     body: JSON.stringify(body),
   });
-const book = async (body = valid) => (await post('/api/create-transaction', body)).json();
+// Each booking comes from its own address, so the per-address booking limit never trips across tests.
+let bookingAddress = 0;
+const book = async (body = valid) =>
+  (await post('/api/create-transaction', body, undefined, { 'X-Forwarded-For': `10.9.${Math.floor(++bookingAddress / 250)}.${bookingAddress % 250}` })).json();
 const confirm = (reference, auth = adminToken) => post('/api/admin/confirm-payment', { reference }, auth);
 const payments = async () =>
   (await fetch(`${API}/api/admin/payments`, { headers: { Authorization: `Bearer ${adminToken}` } })).json();
@@ -55,6 +58,9 @@ before(async () => {
       PAYSTACK_API_BASE: base,
       RESEND_API_KEY: 'resend_key',
       RESEND_API_BASE: base,
+      SENDBYTE_API_KEY: 'sendbyte_key',
+      SENDBYTE_API_BASE: base,
+      EMAIL_PROVIDERS: 'sendbyte,resend',
       RESEND_FROM_EMAIL: 'test@fetuils.ng',
       FRONTEND_URL: 'https://fetuils.ng',
       STAFF_PIN: PIN,
@@ -537,4 +543,16 @@ test('guest emails retry when Resend says slow down, and staff see and fix failu
   assert.equal(one.sent, 1);
   assert.equal((await adminPost(`events/${event.id}/resend`, { failed: true })).status, 404);
   assert.equal((await post(`/api/admin/events/${event.id}/resend`, { failed: true }, token)).status, 401);
+});
+
+test('emails go through SendByte first and fall back to Resend if it fails', async () => {
+  const { reference } = await book();
+  await confirm(reference);
+  assert.equal(state.emails[0].provider, 'sendbyte');
+  assert.equal(state.emails[0].reply_to, undefined);
+  state.failSendbyte = true;
+  const { reference: second } = await book({ ...valid, full_name: 'Second' });
+  const body = await (await confirm(second)).json();
+  assert.equal(body.email_sent, true);
+  assert.equal(state.emails[1].provider, 'resend');
 });

@@ -15,6 +15,7 @@ export const emptyState = () => ({
   failPaystack: false,
   failEmail: false,
   rateLimitEmails: 0,
+  failSendbyte: false,
 });
 
 const readBody = (req) =>
@@ -98,13 +99,22 @@ export function createFakeServices(state, port) {
     if (url.pathname.startsWith('/transaction/verify/')) {
       return send(200, { status: true, data: state.verify ?? { status: 'abandoned' } });
     }
+    if (url.pathname === '/v1/emails') {
+      if (state.failEmail || state.failSendbyte) return send(500, { message: 'sendbyte down' });
+      if (state.rateLimitEmails > 0) {
+        state.rateLimitEmails -= 1;
+        return send(429, { message: 'Too many requests' });
+      }
+      state.emails.push({ ...JSON.parse(body), provider: 'sendbyte' });
+      return send(200, { id: 'sb_1' });
+    }
     if (url.pathname === '/emails') {
       if (state.failEmail) return send(500, { message: 'email down' });
       if (state.rateLimitEmails > 0) {
         state.rateLimitEmails -= 1;
         return send(429, { message: 'Too many requests' });
       }
-      state.emails.push(JSON.parse(body));
+      state.emails.push({ ...JSON.parse(body), provider: 'resend' });
       return send(200, { id: 'email_1' });
     }
     return send(404, { message: `unexpected ${req.method} ${url.pathname}` });

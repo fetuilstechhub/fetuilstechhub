@@ -46,6 +46,8 @@ Create `server/.env`:
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
 | `PAYMENT_MODE` | Leave unset for bank transfers via WhatsApp. Set to `paystack` once Paystack is live |
 | `PAYSTACK_SECRET_KEY` | Paystack secret key (server only). Only needed when `PAYMENT_MODE` is `paystack` |
+| `EMAIL_PROVIDERS` | Email providers in order, e.g. `sendbyte,resend`: the next is used if one fails. Defaults to `resend` |
+| `SENDBYTE_API_KEY` | SendByte live key (`sk_live_...`) |
 | `RESEND_API_KEY` | Resend API key |
 | `RESEND_FROM_EMAIL` | Sender address for booking emails |
 | `FRONTEND_URL` | Site URL that Paystack returns customers to |
