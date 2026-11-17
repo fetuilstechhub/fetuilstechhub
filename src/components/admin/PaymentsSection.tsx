@@ -3,9 +3,11 @@ import { Check, Loader2 } from 'lucide-react';
 import { dateTime, naira, shortDate, SignedOut, type AdminCall, type Booking } from '@/lib/admin';
 import { Button, Card, Empty, SectionTitle, Spinner, inputClass, type Notify } from './ui';
 
-const Waiting = ({ payment, onConfirm }: { payment: Booking; onConfirm: (p: Booking) => Promise<void> }) => {
+const Waiting = ({ payment, onConfirm }: { payment: Booking; onConfirm: (p: Booking, amount: number) => Promise<void> }) => {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [amount, setAmount] = useState(String(payment.amount));
+  const received = amount === '' ? NaN : Number(amount);
 
   return (
     <Card>
@@ -24,15 +26,29 @@ const Waiting = ({ payment, onConfirm }: { payment: Booking; onConfirm: (p: Book
       </div>
       {asking ? (
         <div className="mt-3 rounded-xl bg-amber-50 p-3">
-          <p className="font-semibold text-amber-950">Is {naira(payment.amount)} from {payment.holder} in the bank account?</p>
+          <label className="block text-sm font-medium text-amber-950">
+            Amount received (₦)
+            <input
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
+              className="mt-1 h-11 w-full rounded-xl border border-amber-200 bg-white px-3 text-lg font-bold text-[#0B1F3F]"
+            />
+            {received !== payment.amount && !Number.isNaN(received) && (
+              <span className="mt-1 block text-xs">Listed price is {naira(payment.amount)}. The pass and totals will show {naira(received)}.</span>
+            )}
+          </label>
+          <p className="mt-3 font-semibold text-amber-950">
+            {Number.isNaN(received) ? 'Enter the amount received.' : `Is ${naira(received)} from ${payment.holder} in the bank account?`}
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button variant="outline" disabled={busy} onClick={() => setAsking(false)}>Not yet</Button>
             <Button
               variant="green"
-              disabled={busy}
+              disabled={busy || Number.isNaN(received)}
               onClick={async () => {
                 setBusy(true);
-                await onConfirm(payment);
+                await onConfirm(payment, received);
                 setBusy(false);
                 setAsking(false);
               }}
@@ -66,9 +82,9 @@ const PaymentsSection = ({ call, notify }: { call: AdminCall; notify: Notify }) 
     void load();
   }, [load]);
 
-  const confirm = async (payment: Booking) => {
+  const confirm = async (payment: Booking, amount: number) => {
     try {
-      const body = await call<{ already_paid: boolean; email_sent: boolean }>('confirm-payment', { body: { reference: payment.reference } });
+      const body = await call<{ already_paid: boolean; email_sent: boolean }>('confirm-payment', { body: { reference: payment.reference, amount } });
       if (body.already_paid) notify(`${payment.holder} was already confirmed.`);
       else if (body.email_sent) notify(`Payment confirmed. Pass emailed to ${payment.email}.`);
       else notify(`Payment confirmed, but the email failed. In Bookings, copy ${payment.holder}'s pass link and send it on WhatsApp.`, false);

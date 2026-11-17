@@ -35,6 +35,7 @@ export const bookingRow = (b) => ({
   plan_id: b.plan_id,
   plan_title: b.plan_title,
   amount: b.amount,
+  listed_price: b.metadata?.listed_price ?? null,
   starts_on: b.metadata?.booking_date ?? null,
   valid_until: b.metadata?.valid_until ?? null,
   notes: b.metadata?.notes ?? '',
@@ -103,7 +104,13 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
         start_time: `${date}T09:00:00.000Z`,
         status: 'pending',
         paystack_reference: reference,
-        metadata: { source: 'admin', booking_date: date, valid_until: validUntil(date, planId), notes },
+        metadata: {
+          source: 'admin',
+          booking_date: date,
+          valid_until: validUntil(date, planId),
+          notes,
+          ...(amount !== PLANS[planId].price ? { listed_price: PLANS[planId].price } : {}),
+        },
       }])
       .select()
       .single();
@@ -111,8 +118,25 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     return data;
   }
 
-  const confirmTransfer = (booking) =>
-    markPaid(booking, { ...booking.metadata, payment_method: 'transfer', payment_confirmed_at: new Date().toISOString() });
+  // amount: what was actually paid, when it differs from the listed price (an agreed discount).
+  const confirmTransfer = (booking, amount = booking.amount) =>
+    markPaid(
+      booking,
+      {
+        ...booking.metadata,
+        payment_method: 'transfer',
+        payment_confirmed_at: new Date().toISOString(),
+        ...(amount !== booking.amount ? { listed_price: booking.amount } : {}),
+      },
+      { amount },
+    );
+
+  // Naira amount typed by staff. undefined means "keep the price"; null means it was invalid.
+  function parseAmount(value) {
+    if (value === undefined || value === null || value === '') return undefined;
+    const amount = Number(value);
+    return Number.isInteger(amount) && amount >= 0 && amount <= 10_000_000 ? amount : null;
+  }
 
   // Shared checks for a booking typed in by staff. Returns clean values or an error.
   function bookingInput(body, planId) {
@@ -123,11 +147,9 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     if (!fullName) return { error: 'Please enter a full name.' };
     if (!EMAIL_RE.test(email)) return { error: 'Please enter a valid email address.' };
     if (!DATE_RE.test(date) || Number.isNaN(Date.parse(date))) return { error: 'Please choose a date.' };
-    let amount = PLANS[planId].price;
-    if (body.amount !== undefined && body.amount !== null && body.amount !== '') {
-      amount = Number(body.amount);
-      if (!Number.isInteger(amount) || amount < 0 || amount > 10_000_000) return { error: 'Please enter the amount received in naira.' };
-    }
+    const typed = parseAmount(body.amount);
+    if (typed === null) return { error: 'Please enter the amount received in naira.' };
+    const amount = typed ?? PLANS[planId].price;
     return { fullName, email, planId, date, notes: text(body.notes, 1000), amount };
   }
 
@@ -209,8 +231,27 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     if (!booking) return res.status(404).json({ error: 'not_found' });
     if (booking.status === 'paid') return res.json({ already_paid: true, email_sent: false, booking: bookingRow(booking) });
     if (booking.status !== 'pending') return res.status(409).json({ error: 'not_pending' });
-    const result = await confirmTransfer(booking);
+    const amount = parseAmount(req.body?.amount);
+    if (amount === null) return res.status(400).json({ error: 'Please enter the amount received in naira.' });
+    const result = await confirmTransfer(booking, amount ?? booking.amount);
     return res.json({ already_paid: result.alreadyPaid, email_sent: result.emailSent, booking: bookingRow(result.booking) });
+  });
+
+  // Corrects the amount on a paid booking, keeping a note of what it was before.
+  route('post', '/bookings/amount', async (req, res) => {
+    const booking = await findBooking(req.body?.reference);
+    if (!booking) return res.status(404).json({ error: 'not_found' });
+    if (booking.status !== 'paid') return res.status(409).json({ error: 'Only paid bookings have an amount to correct. Set the amount when confirming the payment.' });
+    const amount = parseAmount(req.body?.amount);
+    if (amount === undefined || amount === null) return res.status(400).json({ error: 'Please enter the amount received in naira.' });
+    const history = Array.isArray(booking.metadata?.amount_changes) ? booking.metadata.amount_changes : [];
+    const metadata = {
+      ...booking.metadata,
+      amount_changes: [...history, { from: booking.amount, to: amount, at: new Date().toISOString() }].slice(-20),
+    };
+    const { data, error } = await supabase.from('bookings').update({ amount, metadata }).eq('id', booking.id).select().single();
+    if (error) throw new Error(`Amount update failed: ${error.message}`);
+    return res.json({ booking: bookingRow(data) });
   });
 
   route('get', '/bookings', async (req, res) => {

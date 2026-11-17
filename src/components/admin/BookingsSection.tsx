@@ -85,6 +85,9 @@ const BookingCard = ({ booking, call, notify, reload }: { booking: Booking; call
         </div>
         <div className="flex-shrink-0 text-right">
           <div className="font-extrabold text-[#0B1F3F]">{naira(booking.amount)}</div>
+          {booking.listed_price !== null && booking.listed_price !== booking.amount && (
+            <div className="text-xs text-slate-500 line-through">{naira(booking.listed_price)}</div>
+          )}
           <StatusBadge status={booking.status} />
         </div>
       </div>
@@ -107,6 +110,24 @@ const BookingCard = ({ booking, call, notify, reload }: { booking: Booking; call
           <>
             <Button variant="outline" onClick={async () => { if (await copyText(passLink(booking.reference))) notify('Pass link copied. Paste it in WhatsApp.'); }}>
               <Copy className="h-4 w-4" /> Pass link
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const typed = window.prompt(`Correct amount received from ${booking.holder} (₦). Currently ${naira(booking.amount)}.`, String(booking.amount));
+                if (typed === null) return;
+                const amount = Number(typed.replace(/[^\d]/g, ''));
+                if (!typed.trim() || !Number.isInteger(amount)) return notify('Please enter the amount in naira, numbers only.', false);
+                try {
+                  await call('bookings/amount', { body: { reference: booking.reference, amount } });
+                  notify(`Amount updated to ${naira(amount)}. Resend the pass if they need the corrected copy.`);
+                  reload();
+                } catch (err) {
+                  if (!(err instanceof SignedOut)) notify((err as Error).message, false);
+                }
+              }}
+            >
+              Edit amount
             </Button>
             <Button variant="outline" onClick={() => run('bookings/resend', (b) => notify(b.email_sent ? `Pass emailed again to ${booking.email}.` : 'The email failed. Copy the pass link instead.', !!b.email_sent))}>
               Resend pass

@@ -438,3 +438,23 @@ test('an admin sign-in lasts 12 hours, a door sign-in lasts a week', () => {
   assert.ok(hours(adminToken) > 11 && hours(adminToken) <= 12);
   assert.ok(hours(token) > 24 * 6);
 });
+
+test('staff can confirm an agreed amount and correct it later, keeping the listed price', async () => {
+  const { reference } = await book({ ...valid, plan_id: 'event_hall' });
+  assert.equal((await adminPost('confirm-payment', { reference, amount: 'lots' })).status, 400);
+  assert.equal(state.bookings[0].status, 'pending');
+  const res = await (await adminPost('confirm-payment', { reference, amount: 40000 })).json();
+  assert.equal(res.booking.amount, 40000);
+  assert.equal(res.booking.listed_price, 50000);
+  assert.equal(state.bookings[0].amount, 40000);
+  assert.ok(state.emails[0].html.includes('₦40,000'));
+
+  const fixed = await (await adminPost('bookings/amount', { reference, amount: 45000 })).json();
+  assert.equal(fixed.booking.amount, 45000);
+  assert.deepEqual(state.bookings[0].metadata.amount_changes.map((c) => [c.from, c.to]), [[40000, 45000]]);
+  assert.equal((await adminGet('overview')).revenue.today, 45000);
+
+  const { reference: unpaid } = await book();
+  assert.equal((await adminPost('bookings/amount', { reference: unpaid, amount: 1000 })).status, 409);
+  assert.equal((await post('/api/admin/bookings/amount', { reference, amount: 1 }, token)).status, 401);
+});

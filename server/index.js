@@ -115,10 +115,10 @@ async function sendConfirmationEmail(booking) {
 
 // Safe to call repeatedly: only the call that moves the booking from pending to paid
 // sends the email. Throws on database errors so the webhook can ask Paystack to retry.
-async function markPaid(booking, metadata = booking.metadata) {
+async function markPaid(booking, metadata = booking.metadata, changes = {}) {
   const { data: updated, error: updateError } = await supabase
     .from('bookings')
-    .update({ status: 'paid', metadata })
+    .update({ status: 'paid', metadata, ...changes })
     .eq('id', booking.id)
     .eq('status', 'pending')
     .select();

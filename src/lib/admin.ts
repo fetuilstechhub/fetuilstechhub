@@ -47,6 +47,7 @@ export type Booking = {
   plan_id: string;
   plan_title: string;
   amount: number;
+  listed_price: number | null;
   starts_on: string | null;
   valid_until: string | null;
   notes: string;
