@@ -57,6 +57,8 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     minLength: MIN_PIN_LENGTH,
     name: 'ADMIN_PIN',
     limiter,
+    // Shorter than the door scanner's week, so a lost or shared device signs itself out.
+    lifetimeMs: 12 * 60 * 60 * 1000,
   });
   const requireAdmin = auth.requireAuth;
 

@@ -3,11 +3,11 @@
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 
-const TOKEN_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest();
 export const safeEqual = (a, b) => crypto.timingSafeEqual(sha256(a), sha256(b));
 
-export function pinAuth({ pin, secret, scope, minLength, name, limiter }) {
+export function pinAuth({ pin, secret, scope, minLength, name, limiter, lifetimeMs = DEFAULT_LIFETIME_MS }) {
   const configured = typeof pin === 'string' && pin.length >= minLength;
   if (!configured) console.warn(`${name} must be at least ${minLength} characters: ${scope} sign-in is disabled`);
 
@@ -41,7 +41,7 @@ export function pinAuth({ pin, secret, scope, minLength, name, limiter }) {
       if (typeof req.body?.pin !== 'string' || !safeEqual(req.body.pin, pin)) {
         return res.status(401).json({ error: 'Wrong PIN.' });
       }
-      const expires = String(Date.now() + TOKEN_LIFETIME_MS);
+      const expires = String(Date.now() + lifetimeMs);
       return res.json({ token: `${expires}.${sign(expires)}` });
     },
   ];

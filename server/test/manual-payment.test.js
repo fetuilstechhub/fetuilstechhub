@@ -432,3 +432,9 @@ test('staff see every attendee across all events', async () => {
   assert.equal(guests.length, 3);
   assert.deepEqual(guests.map((g) => g.event_title).sort(), ['Design Jam', 'Design Jam', 'Summit Day']);
 });
+
+test('an admin sign-in lasts 12 hours, a door sign-in lasts a week', () => {
+  const hours = (tok) => (Number(tok.split('.')[0]) - Date.now()) / 3_600_000;
+  assert.ok(hours(adminToken) > 11 && hours(adminToken) <= 12);
+  assert.ok(hours(token) > 24 * 6);
+});
