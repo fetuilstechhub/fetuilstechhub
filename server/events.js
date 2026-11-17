@@ -138,7 +138,7 @@ export function eventsRouter({ supabase, limiter, sendEmail, frontendUrl }) {
     return res.json(publicEvent(event));
   }));
 
-  router.post('/:slug/register', limiter(300), guarded(async (req, res) => {
+  router.post('/:slug/register', limiter(100), guarded(async (req, res) => {
     const body = req.body || {};
     // Hidden form field that only bots fill in. Pretend success so they move on.
     if (body.website) return res.json({ ok: true, email_sent: true });

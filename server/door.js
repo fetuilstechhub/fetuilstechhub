@@ -1,6 +1,7 @@
 // Door scanner API. The system decides who gets in; the guard follows the colour.
 import crypto from 'crypto';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { passCode } from './pass-email.js';
 import { PLANS, validUntil } from './plans.js';
 import { publicEvent } from './events.js';
@@ -134,7 +135,19 @@ export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staf
     }
   };
 
-  router.post('/login', limiter(10), (req, res) => {
+  // Counts wrong PINs from every device together, so guessing from many
+  // connections at once is still slow. Phones already signed in are unaffected.
+  const wrongPinLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    keyGenerator: () => 'all-devices',
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many wrong PINs. Try again in 15 minutes.' },
+  });
+
+  router.post('/login', limiter(10), wrongPinLimit, (req, res) => {
     if (!pinConfigured) return res.status(503).json({ error: 'The door scanner is not set up yet.' });
     if (typeof req.body?.pin !== 'string' || !safeEqual(req.body.pin, staffPin)) {
       return res.status(401).json({ error: 'Wrong PIN.' });

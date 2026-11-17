@@ -73,6 +73,11 @@ const limiter = (max) =>
   });
 
 const app = express();
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
+  next();
+});
 
 // Render sits in front of the app as one proxy, so rate limits see the real client IP.
 app.set('trust proxy', 1);

@@ -280,3 +280,19 @@ test('a database failure never shows green', async () => {
   assert.equal(response.status, 500);
   assert.equal((await response.json()).verdict, undefined);
 });
+
+test('wrong PINs are capped across all devices, and a right PIN still works', async () => {
+  // Each attempt comes from a different address, as if spread over many phones.
+  let blocked = false;
+  for (let i = 0; i < 31 && !blocked; i++) {
+    const res = await fetch(`${API}/api/door/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `10.0.${i}.1` },
+      body: JSON.stringify({ pin: '000000' }),
+    });
+    blocked = res.status === 429;
+  }
+  assert.ok(blocked, 'expected wrong PINs to be blocked');
+  const scanStillWorks = await post('scan', { reference: 'fet_unknown' });
+  assert.equal(scanStillWorks.status, 200);
+});
