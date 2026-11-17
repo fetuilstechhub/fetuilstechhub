@@ -286,6 +286,27 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     }
   }, 60);
 
+  // TEMPORARY: for clearing launch test data. Remove once the test bookings are gone.
+  // Permanently deletes a booking with its check-ins, photo, event page and guest list.
+  route('post', '/bookings/delete', async (req, res) => {
+    const booking = await findBooking(req.body?.reference);
+    if (!booking) return res.status(404).json({ error: 'not_found' });
+    const { data: events, error: eventsError } = await supabase.from('events').select('id').eq('booking_id', booking.id);
+    if (eventsError) throw new Error(`Event lookup failed: ${eventsError.message}`);
+    for (const event of events) {
+      const guests = await supabase.from('event_registrations').delete().eq('event_id', event.id);
+      if (guests.error) throw new Error(`Guest delete failed: ${guests.error.message}`);
+    }
+    for (const table of ['events', 'check_ins', 'pass_photos']) {
+      const { error } = await supabase.from(table).delete().eq('booking_id', booking.id);
+      if (error) throw new Error(`${table} delete failed: ${error.message}`);
+    }
+    const { error } = await supabase.from('bookings').delete().eq('id', booking.id);
+    if (error) throw new Error(`Booking delete failed: ${error.message}`);
+    console.warn('[ADMIN] Booking deleted', booking.id);
+    return res.json({ ok: true });
+  }, 120);
+
   route('post', '/bookings/cancel', async (req, res) => {
     const booking = await findBooking(req.body?.reference);
     if (!booking) return res.status(404).json({ error: 'not_found' });

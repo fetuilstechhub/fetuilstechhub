@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Copy, Download, Plus, X } from 'lucide-react';
+import { Copy, Download, Plus, Trash2, X } from 'lucide-react';
 import { workspacePlans, eventItems, rentalItems } from '@/lib/plans';
 import {
   copyText, dateTime, downloadCsv, lagosToday, naira, passLink, setupLink, shortDate, SignedOut, type AdminCall, type Booking,
@@ -139,6 +139,20 @@ const BookingCard = ({ booking, call, notify, reload }: { booking: Booking; call
             )}
           </>
         )}
+        {/* TEMPORARY: for clearing launch test data. Remove once the test bookings are gone. */}
+        <Button
+          variant="danger"
+          onClick={() => {
+            const typed = window.prompt(
+              `Permanently delete ${booking.holder}'s booking (${booking.code})?\n\nThis also deletes its check-ins and, for Event Hall, its event page and guest list. It cannot be undone.\n\nType DELETE to confirm.`,
+            );
+            if (typed === null) return;
+            if (typed.trim().toUpperCase() !== 'DELETE') return notify('Not deleted. Type DELETE to confirm.', false);
+            void run('bookings/delete', () => notify(`${booking.holder}'s booking was deleted.`));
+          }}
+        >
+          <Trash2 className="h-4 w-4" /> Delete
+        </Button>
         {booking.status === 'pending' && (
           <Button
             variant="danger"

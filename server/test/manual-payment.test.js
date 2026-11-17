@@ -483,3 +483,16 @@ test('staff edit an event and its organiser, keeping the link and the booking in
   const noAuth = await fetch(`${API}/api/admin/events/${event.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(good) });
   assert.equal(noAuth.status, 401);
 });
+
+test('staff can permanently delete a test booking with everything linked to it', async () => {
+  const { event } = await (await adminPost('events', { organiser_name: 'Test', organiser_email: 'test@e.co', date: today, title: 'Test Event', start_time: later() })).json();
+  await register(event.slug, { full_name: 'Guest', email: 'guest@example.com' });
+  const { reference: keep } = await book({ ...valid, full_name: 'Keep Me' });
+  const eventRef = state.bookings[0].paystack_reference;
+  assert.equal((await post('/api/admin/bookings/delete', { reference: eventRef }, token)).status, 401);
+  assert.equal((await adminPost('bookings/delete', { reference: eventRef })).status, 200);
+  assert.deepEqual(state.bookings.map((b) => b.paystack_reference), [keep]);
+  assert.equal(state.events.length, 0);
+  assert.equal(state.event_registrations.length, 0);
+  assert.equal((await adminPost('bookings/delete', { reference: eventRef })).status, 404);
+});
