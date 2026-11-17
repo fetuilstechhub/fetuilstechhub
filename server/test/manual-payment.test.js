@@ -511,3 +511,30 @@ test('event link previews show the event name, date and branded image, safely', 
   const missing = await (await fetch(`${API}/api/events/no-such-event/preview`)).text();
   assert.ok(missing.includes('Event at FETUILS TechHub'));
 });
+
+test('guest emails retry when Resend says slow down, and staff see and fix failures', async () => {
+  const { event } = await (await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() })).json();
+  const before = state.emails.length;
+  state.rateLimitEmails = 2;
+  const ok = await (await register(event.slug, { full_name: 'Busy Moment', email: 'busy@example.com' })).json();
+  assert.equal(ok.email_sent, true);
+  assert.equal(state.emails.length, before + 1);
+
+  state.failEmail = true;
+  const bad = await (await register(event.slug, { full_name: 'Unlucky', email: 'unlucky@example.com' })).json();
+  assert.equal(bad.email_sent, false);
+  state.failEmail = false;
+
+  let { guests } = await adminGet(`events/${event.id}/guests`);
+  assert.deepEqual(guests.map((g) => [g.email, g.email_status]), [['busy@example.com', 'sent'], ['unlucky@example.com', 'failed']]);
+
+  const again = await (await adminPost(`events/${event.id}/resend`, { failed: true })).json();
+  assert.deepEqual(again, { sent: 1, failed: 0 });
+  ({ guests } = await adminGet(`events/${event.id}/guests`));
+  assert.equal(guests[1].email_status, 'sent');
+
+  const one = await (await adminPost(`events/${event.id}/resend`, { email: 'BUSY@example.com' })).json();
+  assert.equal(one.sent, 1);
+  assert.equal((await adminPost(`events/${event.id}/resend`, { failed: true })).status, 404);
+  assert.equal((await post(`/api/admin/events/${event.id}/resend`, { failed: true }, token)).status, 401);
+});

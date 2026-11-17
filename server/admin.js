@@ -3,7 +3,7 @@
 import crypto from 'crypto';
 import { Router } from 'express';
 import { pinAuth, safeEqual } from './auth.js';
-import { EVENT_PLAN, eventDetails, insertEvent, publicEvent } from './events.js';
+import { EVENT_PLAN, eventDetails, insertEvent, publicEvent, sendGuestPass } from './events.js';
 import { passCode } from './pass-email.js';
 import { PLANS, validUntil } from './plans.js';
 
@@ -46,7 +46,7 @@ export const bookingRow = (b) => ({
   status: b.status,
 });
 
-export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail, adminPin, tokenSecret, staffPin }) {
+export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail, sendEmail, frontendUrl, adminPin, tokenSecret, staffPin }) {
   const router = Router();
   // A guard who knows the door PIN must never be able to open the admin.
   const samePin = typeof adminPin === 'string' && typeof staffPin === 'string' && adminPin.length > 0 && safeEqual(adminPin, staffPin);
@@ -383,12 +383,35 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
     const { data, error } = await supabase
       .from('event_registrations')
-      .select('full_name,email,created_at')
+      .select('*')
       .eq('event_id', req.params.id)
       .order('created_at', { ascending: true });
     if (error) throw new Error(`Guests lookup failed: ${error.message}`);
-    return res.json({ guests: data.map((g) => ({ name: g.full_name, email: g.email, registered_at: g.created_at })) });
+    return res.json({
+      guests: data.map((g) => ({ name: g.full_name, email: g.email, registered_at: g.created_at, email_status: g.email_status ?? null })),
+    });
   });
+
+  // Sends event passes again: to one guest (email) or to everyone whose email failed (failed: true).
+  route('post', '/events/:id/resend', async (req, res) => {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
+    const { data: event, error } = await supabase.from('events').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) throw new Error(`Event lookup failed: ${error.message}`);
+    if (!event) return res.status(404).json({ error: 'not_found' });
+    const { data: guests, error: guestsError } = await supabase.from('event_registrations').select('*').eq('event_id', event.id);
+    if (guestsError) throw new Error(`Guests lookup failed: ${guestsError.message}`);
+
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const targets = req.body?.failed === true ? guests.filter((g) => g.email_status === 'failed') : guests.filter((g) => g.email === email);
+    if (!targets.length) return res.status(404).json({ error: req.body?.failed ? 'No failed emails to resend.' : 'Guest not found.' });
+
+    let sent = 0;
+    // One at a time keeps within Resend's sending speed.
+    for (const registration of targets.slice(0, 300)) {
+      if (await sendGuestPass({ supabase, sendEmail, frontendUrl, event, registration })) sent += 1;
+    }
+    return res.json({ sent, failed: Math.min(targets.length, 300) - sent });
+  }, 60);
 
   // Everyone registered for any event, newest first.
   route('get', '/guests', async (req, res) => {

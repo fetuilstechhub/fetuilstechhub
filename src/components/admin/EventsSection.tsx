@@ -6,7 +6,16 @@ import { eventItems } from '@/lib/plans';
 import { Button, Card, Empty, Field, SectionTitle, Spinner, inputClass, type Notify } from './ui';
 
 type AdminEvent = PublicEvent & { id: string; organiser_email: string; reference: string | null; guests: number };
-type Guest = { name: string; email: string; registered_at: string };
+type Guest = { name: string; email: string; registered_at: string; email_status?: 'sent' | 'failed' | null };
+
+const EmailStatus = ({ status }: { status?: Guest['email_status'] }) =>
+  status === 'sent' ? (
+    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">Email sent</span>
+  ) : status === 'failed' ? (
+    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">Email failed</span>
+  ) : (
+    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Not recorded</span>
+  );
 
 type AnyGuest = Guest & { event_title: string; event_starts_at: string | null };
 
@@ -183,14 +192,38 @@ const EventCard = ({ event, call, notify, reload }: { event: AdminEvent; call: A
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const toggle = async () => {
-    if (open) return setOpen(false);
-    setOpen(true);
+  const [sending, setSending] = useState('');
+
+  const loadGuests = async () => {
     try {
       setGuests((await call<{ guests: Guest[] }>(`events/${event.id}/guests`)).guests);
     } catch (err) {
       if (!(err instanceof SignedOut)) notify((err as Error).message, false);
       setOpen(false);
+    }
+  };
+
+  const toggle = async () => {
+    if (open) return setOpen(false);
+    setOpen(true);
+    await loadGuests();
+  };
+
+  const resend = async (body: { email?: string; failed?: boolean }) => {
+    setSending(body.email ?? 'failed');
+    try {
+      const result = await call<{ sent: number; failed: number }>(`events/${event.id}/resend`, { body });
+      notify(
+        result.failed
+          ? `${result.sent} sent, ${result.failed} still failing. You may have reached Resend's daily limit. Check the Resend dashboard.`
+          : `Event pass sent to ${result.sent} ${result.sent === 1 ? 'guest' : 'guests'}. Ask them to check Spam and Promotions too.`,
+        !result.failed,
+      );
+      await loadGuests();
+    } catch (err) {
+      if (!(err instanceof SignedOut)) notify((err as Error).message, false);
+    } finally {
+      setSending('');
     }
   };
 
@@ -246,16 +279,38 @@ const EventCard = ({ event, call, notify, reload }: { event: AdminEvent; call: A
                 <input aria-label="Search guests" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guest name or email" className={inputClass} />
                 <Button
                   variant="outline"
-                  onClick={() => downloadCsv(`${event.slug}-guests.csv`, [['Name', 'Email', 'Registered'], ...guests.map((g) => [g.name, g.email, g.registered_at])])}
+                  onClick={() => downloadCsv(`${event.slug}-guests.csv`, [['Name', 'Email', 'Registered', 'Email status'], ...guests.map((g) => [g.name, g.email, g.registered_at, g.email_status ?? 'not recorded'])])}
                 >
                   <Download className="h-4 w-4" />
                 </Button>
               </div>
+              {(() => {
+                const failed = guests.filter((g) => g.email_status === 'failed').length;
+                const sent = guests.filter((g) => g.email_status === 'sent').length;
+                return (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2 text-sm text-slate-600">
+                    <span>
+                      <strong className="text-emerald-700">{sent}</strong> emails sent · <strong className={failed ? 'text-red-700' : ''}>{failed}</strong> failed
+                    </span>
+                    {failed > 0 && (
+                      <Button variant="danger" disabled={!!sending} onClick={() => resend({ failed: true })}>
+                        {sending === 'failed' ? 'Sending...' : `Resend to ${failed} failed`}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
               <ol className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200">
                 {shown.map((g) => (
-                  <li key={g.email} className="p-3">
-                    <div className="break-words font-semibold text-[#0B1F3F]">{g.name}</div>
-                    <div className="break-all text-sm text-slate-500">{g.email}</div>
+                  <li key={g.email} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                    <div className="min-w-0">
+                      <div className="break-words font-semibold text-[#0B1F3F]">{g.name}</div>
+                      <div className="break-all text-sm text-slate-500">{g.email}</div>
+                      <div className="mt-1"><EmailStatus status={g.email_status} /></div>
+                    </div>
+                    <Button variant="outline" disabled={!!sending} onClick={() => resend({ email: g.email })} className="h-9 px-3 text-sm">
+                      {sending === g.email ? 'Sending...' : 'Resend'}
+                    </Button>
                   </li>
                 ))}
               </ol>

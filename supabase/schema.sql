@@ -76,3 +76,6 @@ create table if not exists event_registrations (
 
 create unique index if not exists idx_event_registrations_email on event_registrations (event_id, email);
 alter table event_registrations enable row level security;
+
+-- Whether each guest's event pass email was sent ('sent' or 'failed'), shown in the admin.
+alter table event_registrations add column if not exists email_status text;

@@ -69,6 +69,27 @@ export async function insertEvent(supabase, booking, { title, description, start
   throw new Error('Could not create a unique event link');
 }
 
+// Sends a guest their event pass and records whether it went, so staff can see it.
+// The status is saved separately: if the email_status column is missing, registration still works.
+export async function sendGuestPass({ supabase, sendEmail, frontendUrl, event, registration }) {
+  let status = 'sent';
+  try {
+    await sendEmail({
+      to: registration.email,
+      subject: `You're registered: ${event.title}`,
+      html: guestPassEmailHtml({ event, guestName: registration.full_name, frontendUrl }),
+    });
+  } catch (err) {
+    status = 'failed';
+    console.error('[EVENTS] Guest email failed for event', event.id, err.message);
+  }
+  if (registration.id) {
+    const { error } = await supabase.from('event_registrations').update({ email_status: status }).eq('id', registration.id);
+    if (error) console.error('[EVENTS] Could not save email status', error.message);
+  }
+  return status === 'sent';
+}
+
 export const publicEvent = (event) => ({
   slug: event.slug,
   title: event.title,
@@ -208,21 +229,15 @@ export function eventsRouter({ supabase, limiter, sendEmail, frontendUrl }) {
     if (!fullName) return res.status(400).json({ error: 'Please enter your full name.' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
 
-    const { error } = await supabase.from('event_registrations').insert([{ event_id: event.id, full_name: fullName, email }]).select();
+    const { data: inserted, error } = await supabase
+      .from('event_registrations')
+      .insert([{ event_id: event.id, full_name: fullName, email }])
+      .select();
     if (error?.code === UNIQUE_VIOLATION) return res.json({ ok: true, already_registered: true });
     if (error) throw new Error(`Registration failed: ${error.message}`);
 
-    try {
-      await sendEmail({
-        to: email,
-        subject: `You're registered: ${event.title}`,
-        html: guestPassEmailHtml({ event, guestName: fullName, frontendUrl }),
-      });
-      return res.json({ ok: true, email_sent: true });
-    } catch (err) {
-      console.error('[EVENTS] Guest email failed for event', event.id, err.message);
-      return res.json({ ok: true, email_sent: false });
-    }
+    const sent = await sendGuestPass({ supabase, sendEmail, frontendUrl, event, registration: inserted?.[0] ?? { full_name: fullName, email } });
+    return res.json({ ok: true, email_sent: sent });
   }));
 
   return router;

@@ -92,16 +92,26 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Resend allows only a few emails per second, so when many guests register at once
+// some sends are refused with 429. Wait and retry those, and brief server errors too.
 async function sendEmail(payload) {
   if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set');
-  const response = await fetch(`${RESEND_API_BASE}/emails`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: RESEND_FROM_EMAIL, ...payload }),
-  });
-  if (!response.ok) {
+  const ATTEMPTS = 4;
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetch(`${RESEND_API_BASE}/emails`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: RESEND_FROM_EMAIL, ...payload }),
+    });
+    if (response.ok) return;
     const detail = await response.text().catch(() => '');
-    throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!retryable || attempt >= ATTEMPTS) {
+      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+    }
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 600 * attempt + Math.random() * 400;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
 }
 
@@ -403,6 +413,8 @@ app.use(
     limiter,
     markPaid,
     sendConfirmationEmail,
+    sendEmail,
+    frontendUrl: FRONTEND_URL,
     adminPin: process.env.ADMIN_PIN,
     tokenSecret: SUPABASE_SERVICE_ROLE_KEY,
     staffPin: process.env.STAFF_PIN,

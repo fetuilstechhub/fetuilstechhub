@@ -14,6 +14,7 @@ export const emptyState = () => ({
   failDbWrites: false,
   failPaystack: false,
   failEmail: false,
+  rateLimitEmails: 0,
 });
 
 const readBody = (req) =>
@@ -99,6 +100,10 @@ export function createFakeServices(state, port) {
     }
     if (url.pathname === '/emails') {
       if (state.failEmail) return send(500, { message: 'email down' });
+      if (state.rateLimitEmails > 0) {
+        state.rateLimitEmails -= 1;
+        return send(429, { message: 'Too many requests' });
+      }
       state.emails.push(JSON.parse(body));
       return send(200, { id: 'email_1' });
     }
