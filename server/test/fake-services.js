@@ -6,6 +6,8 @@ export const emptyState = () => ({
   bookings: [],
   check_ins: [],
   pass_photos: [],
+  events: [],
+  event_registrations: [],
   emails: [],
   paystackInits: [],
   verify: null,
@@ -44,7 +46,7 @@ export function createFakeServices(state, port) {
       res.end(JSON.stringify(value));
     };
 
-    const table = url.pathname.match(/^\/rest\/v1\/(bookings|check_ins|pass_photos)$/)?.[1];
+    const table = url.pathname.match(/^\/rest\/v1\/(bookings|check_ins|pass_photos|events|event_registrations)$/)?.[1];
     if (table) {
       let rows = state[table].filter((row) => [...url.searchParams].every(([k, v]) => matchesFilter(row, k, v)));
       if (url.searchParams.get('order')?.includes('desc')) rows = [...rows].reverse();
@@ -64,6 +66,11 @@ export function createFakeServices(state, port) {
             (c) => c.booking_id === row.booking_id && c.check_in_date === row.check_in_date && c.slot === row.slot,
           );
           if (clash) return send(409, { code: '23505', message: 'duplicate key' });
+        }
+        const uniqueOn = { events: ['booking_id', 'slug'], event_registrations: [['event_id', 'email']] }[table] ?? [];
+        for (const key of uniqueOn) {
+          const keys = Array.isArray(key) ? key : [key];
+          if (state[table].some((r) => keys.every((k) => r[k] === row[k]))) return send(409, { code: '23505', message: 'duplicate key' });
         }
         if (table === 'pass_photos') {
           state.pass_photos = state.pass_photos.filter((p) => p.booking_id !== row.booking_id);

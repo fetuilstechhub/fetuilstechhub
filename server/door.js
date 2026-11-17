@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { passCode } from './pass-email.js';
 import { PLANS, validUntil } from './plans.js';
+import { publicEvent } from './events.js';
 
 const TOKEN_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const MIN_PIN_LENGTH = 6;
@@ -203,6 +204,7 @@ export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staf
     code: passCode(booking.paystack_reference),
     holder: booking.full_name,
     email: booking.email,
+    plan_id: booking.plan_id,
     plan_title: booking.plan_title,
     amount: booking.amount,
     starts_on: booking.metadata?.booking_date ?? null,
@@ -211,7 +213,7 @@ export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staf
     status: booking.status,
   });
 
-  const PAYMENT_COLUMNS = 'full_name,email,plan_title,amount,paystack_reference,metadata,created_at,status';
+  const PAYMENT_COLUMNS = 'full_name,email,plan_id,plan_title,amount,paystack_reference,metadata,created_at,status';
 
   router.get('/payments', limiter(300), requireStaff, guarded(async (req, res) => {
     const since = new Date(Date.now() - WAITING_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -249,6 +251,32 @@ export function doorRouter({ supabase, limiter, confirmIfPending, markPaid, staf
       payment_confirmed_at: new Date().toISOString(),
     });
     return res.json({ already_paid: result.alreadyPaid, email_sent: result.emailSent, booking: paymentRow(result.booking) });
+  }));
+
+  router.get('/events', limiter(300), requireStaff, guarded(async (req, res) => {
+    const { data: events, error } = await supabase.from('events').select('*').order('starts_at', { ascending: false }).limit(100);
+    if (error) throw new Error(`Events lookup failed: ${error.message}`);
+    const ids = events.map((e) => e.id);
+    const { data: guests, error: guestsError } = ids.length
+      ? await supabase.from('event_registrations').select('event_id').in('event_id', ids)
+      : { data: [], error: null };
+    if (guestsError) throw new Error(`Guests lookup failed: ${guestsError.message}`);
+    const counts = new Map();
+    for (const g of guests) counts.set(g.event_id, (counts.get(g.event_id) ?? 0) + 1);
+    return res.json({
+      events: events.map((e) => ({ ...publicEvent(e), id: e.id, organiser_email: e.organiser_email, guests: counts.get(e.id) ?? 0 })),
+    });
+  }));
+
+  router.get('/events/:id/guests', limiter(300), requireStaff, guarded(async (req, res) => {
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
+    const { data, error } = await supabase
+      .from('event_registrations')
+      .select('full_name,email,created_at')
+      .eq('event_id', req.params.id)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(`Guests lookup failed: ${error.message}`);
+    return res.json({ guests: data.map((g) => ({ name: g.full_name, email: g.email, registered_at: g.created_at })) });
   }));
 
   return router;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Check, Copy, Loader2, LogOut, RefreshCw } from 'lucide-react';
 import { getToken, setToken } from '@/lib/staff-auth';
+import StaffEvents from '@/components/StaffEvents';
 
 const API = `${import.meta.env.VITE_API_BASE_URL}/api/door`;
 
@@ -9,6 +10,7 @@ type Payment = {
   code: string;
   holder: string;
   email: string;
+  plan_id: string;
   plan_title: string;
   amount: number;
   starts_on: string | null;
@@ -26,8 +28,10 @@ const bookedAt = (iso: string) =>
 const passLink = (reference: string) =>
   `${window.location.origin}/booking/confirmation?reference=${encodeURIComponent(reference)}`;
 
-const copyPassLink = async (reference: string) => {
-  const link = passLink(reference);
+const setupLink = (reference: string) =>
+  `${window.location.origin}/events/setup?reference=${encodeURIComponent(reference)}`;
+
+const copyLink = async (link: string) => {
   try {
     await navigator.clipboard.writeText(link);
     return true;
@@ -144,7 +148,7 @@ const Payments = () => {
   const [token, setTokenState] = useState(getToken);
   const [waiting, setWaiting] = useState<Payment[]>([]);
   const [confirmed, setConfirmed] = useState<Payment[]>([]);
-  const [tab, setTab] = useState<'waiting' | 'confirmed'>('waiting');
+  const [tab, setTab] = useState<'waiting' | 'confirmed' | 'events'>('waiting');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -153,6 +157,20 @@ const Payments = () => {
     setToken(null);
     setTokenState(null);
   }, []);
+
+  const staffCall = useCallback(
+    async (path: string) => {
+      const response = await fetch(`${API}/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (response.status === 401) {
+        signOut();
+        throw new Error('signed_out');
+      }
+      if (!response.ok) throw new Error('failed');
+      return response.json();
+    },
+    [signOut, token],
+  );
+  const eventNotice = useCallback((text: string) => setNotice({ good: !/^Could not/.test(text), text }), []);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -211,7 +229,7 @@ const Payments = () => {
   const query = search.trim().toLowerCase();
   const matches = (payment: Payment) =>
     !query || [payment.holder, payment.code, payment.email].some((value) => value.toLowerCase().includes(query));
-  const shown = (tab === 'waiting' ? waiting : confirmed).filter(matches);
+  const shown = (tab === 'waiting' ? waiting : tab === 'confirmed' ? confirmed : []).filter(matches);
 
   return (
     <div className="min-h-[100dvh] bg-slate-50">
@@ -238,8 +256,8 @@ const Payments = () => {
           </p>
         )}
 
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-slate-200 p-1">
-          {(['waiting', 'confirmed'] as const).map((name) => (
+        <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1">
+          {(['waiting', 'confirmed', 'events'] as const).map((name) => (
             <button
               key={name}
               type="button"
@@ -247,11 +265,15 @@ const Payments = () => {
               onClick={() => setTab(name)}
               className={`h-10 rounded-lg font-semibold ${tab === name ? 'bg-white text-[#0B1F3F] shadow-sm' : 'text-slate-600'}`}
             >
-              {name === 'waiting' ? `Waiting (${waiting.length})` : 'Confirmed'}
+              {name === 'waiting' ? `Waiting (${waiting.length})` : name === 'confirmed' ? 'Confirmed' : 'Events'}
             </button>
           ))}
         </div>
 
+        {tab === 'events' ? (
+          <StaffEvents call={staffCall} onNotice={eventNotice} />
+        ) : (
+        <>
         <input
           aria-label="Search by name, code or email"
           value={search}
@@ -270,12 +292,23 @@ const Payments = () => {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (await copyPassLink(payment.reference)) setNotice({ good: true, text: `${payment.holder}'s pass link is copied. Paste it in WhatsApp.` });
+                    if (await copyLink(passLink(payment.reference))) setNotice({ good: true, text: `${payment.holder}'s pass link is copied. Paste it in WhatsApp.` });
                   }}
                   className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 font-semibold text-slate-700"
                 >
                   <Copy className="h-4 w-4" /> Copy pass link
                 </button>
+                {payment.plan_id === 'event_hall' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (await copyLink(setupLink(payment.reference))) setNotice({ good: true, text: `${payment.holder}'s event setup link is copied. Only send it to the organiser.` });
+                    }}
+                    className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 font-semibold text-slate-700"
+                  >
+                    <Copy className="h-4 w-4" /> Copy event setup link
+                  </button>
+                )}
               </li>
             ),
           )}
@@ -285,6 +318,8 @@ const Payments = () => {
           <p className="mt-8 text-center text-slate-500">
             {query ? 'No bookings match your search.' : tab === 'waiting' ? 'No bookings are waiting for payment.' : 'No confirmed payments yet.'}
           </p>
+        )}
+        </>
         )}
       </div>
     </div>

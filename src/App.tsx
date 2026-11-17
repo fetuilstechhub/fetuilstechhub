@@ -17,6 +17,8 @@ import Confirmation from './pages/Confirmation';
 // Staff only, so customers don't download the scanner code.
 const Door = lazy(() => import('./pages/Door'));
 const Payments = lazy(() => import('./pages/Payments'));
+const EventSetup = lazy(() => import('./pages/EventSetup'));
+const EventPage = lazy(() => import('./pages/EventPage'));
 
 const queryClient = new QueryClient();
 
@@ -54,6 +56,22 @@ const App = () => (
             element={
               <Suspense fallback={null}>
                 <Payments />
+              </Suspense>
+            }
+          />
+          <Route
+            path='/events/setup'
+            element={
+              <Suspense fallback={null}>
+                <EventSetup />
+              </Suspense>
+            }
+          />
+          <Route
+            path='/events/:slug'
+            element={
+              <Suspense fallback={null}>
+                <EventPage />
               </Suspense>
             }
           />

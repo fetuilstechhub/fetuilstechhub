@@ -50,3 +50,29 @@ create table if not exists pass_photos (
 );
 
 alter table pass_photos enable row level security;
+
+-- Event pages: one per paid Event Hall booking. Guests register with name and email.
+create table if not exists events (
+  id uuid default gen_random_uuid() primary key,
+  booking_id uuid not null unique references bookings (id) on delete cascade,
+  slug text not null unique,
+  title text not null,
+  description text not null default '',
+  starts_at timestamptz not null,
+  organiser_name text not null,
+  organiser_email text not null,
+  created_at timestamptz default now()
+);
+
+alter table events enable row level security;
+
+create table if not exists event_registrations (
+  id uuid default gen_random_uuid() primary key,
+  event_id uuid not null references events (id) on delete cascade,
+  full_name text not null,
+  email text not null,
+  created_at timestamptz default now()
+);
+
+create unique index if not exists idx_event_registrations_email on event_registrations (event_id, email);
+alter table event_registrations enable row level security;

@@ -103,6 +103,107 @@ test('an event hall booking costs 50,000 for one day', async () => {
   assert.equal(state.bookings[0].metadata.valid_until, today);
 });
 
+async function paidEvent() {
+  const { reference } = await book({ ...valid, plan_id: 'event_hall', full_name: 'Tola Host', email: 'tola@example.com' });
+  await confirm(reference);
+  return reference;
+}
+const setupEvent = (body) => post('/api/events/setup', body);
+const register = (slug, body) => post(`/api/events/${slug}/register`, body);
+const later = () => {
+  const d = new Date(Date.now() + 3 * 60 * 60 * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' });
+  return d < '21:00' ? d : '23:59';
+};
+
+test('the Event Hall pass email links the organiser to their event setup', async () => {
+  const reference = await paidEvent();
+  assert.ok(state.emails[0].html.includes(`/events/setup?reference=${reference}`));
+  const { reference: daily } = await book();
+  await confirm(daily);
+  assert.ok(!state.emails[1].html.includes('/events/setup'));
+});
+
+test('only a paid Event Hall booking can set up an event', async () => {
+  const { reference: unpaid } = await book({ ...valid, plan_id: 'event_hall' });
+  assert.equal((await setupEvent({ reference: unpaid, title: 'Summit', start_time: '10:00' })).status, 403);
+  const { reference: daily } = await book();
+  await confirm(daily);
+  assert.equal((await setupEvent({ reference: daily, title: 'Summit', start_time: '10:00' })).status, 403);
+  assert.equal((await setupEvent({ reference: 'fet_nope', title: 'Summit', start_time: '10:00' })).status, 404);
+  assert.equal(state.events.length, 0);
+});
+
+test('an organiser creates and edits their event page, keeping the link', async () => {
+  const reference = await paidEvent();
+  assert.equal((await setupEvent({ reference, title: 'x', start_time: '10:00' })).status, 400);
+  assert.equal((await setupEvent({ reference, title: 'Summit', start_time: '25:00' })).status, 400);
+  const created = await (await setupEvent({ reference, title: 'Tech Summit 2026!', description: 'Talks', start_time: later() })).json();
+  assert.match(created.slug, /^tech-summit-2026-[0-9a-f]{4}$/);
+  assert.equal(created.open, true);
+  const edited = await (await setupEvent({ reference, title: 'Tech Summit', start_time: later() })).json();
+  assert.equal(edited.slug, created.slug);
+  assert.equal(state.events.length, 1);
+  const page = await (await fetch(`${API}/api/events/${created.slug}`)).json();
+  assert.equal(page.title, 'Tech Summit');
+  assert.equal(page.organiser, 'Tola Host');
+  assert.equal(page.id, undefined);
+  assert.equal(page.organiser_email, undefined);
+  const setup = await (await fetch(`${API}/api/events/setup?reference=${reference}`)).json();
+  assert.equal(setup.event.slug, created.slug);
+});
+
+test('guests register with name and email and get an event pass by email', async () => {
+  const reference = await paidEvent();
+  const { slug } = await (await setupEvent({ reference, title: 'Tech Summit', start_time: later() })).json();
+  const before = state.emails.length;
+  const res = await register(slug, { full_name: '<b>Ngozi</b>', email: 'Ngozi@Example.com' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).email_sent, true);
+  const mail = state.emails[before];
+  assert.equal(mail.to, 'ngozi@example.com');
+  assert.match(mail.subject, /Tech Summit/);
+  assert.ok(mail.html.includes('&lt;b&gt;Ngozi'));
+  assert.ok(mail.html.includes('Event Pass'));
+  assert.ok(mail.html.includes('NLNG, UNILORIN'));
+
+  const again = await (await register(slug, { full_name: 'Ngozi', email: 'ngozi@example.com' })).json();
+  assert.equal(again.already_registered, true);
+  assert.equal(state.emails.length, before + 1);
+  assert.equal(state.event_registrations.length, 1);
+
+  assert.equal((await register(slug, { full_name: 'A', email: 'bad' })).status, 400);
+  assert.equal((await register(slug, { full_name: ' ', email: 'a@b.co' })).status, 400);
+  assert.equal((await register(slug, { full_name: 'Bot', email: 'bot@b.co', website: 'x' })).status, 200);
+  assert.equal((await register('no-such-event', { full_name: 'A', email: 'a@b.co' })).status, 404);
+  assert.equal(state.event_registrations.length, 1);
+});
+
+test('registration closes 2 hours after the event starts', async () => {
+  const reference = await paidEvent();
+  const { slug } = await (await setupEvent({ reference, title: 'Tech Summit', start_time: later() })).json();
+  state.events[0].starts_at = new Date(Date.now() - 119 * 60 * 1000).toISOString();
+  assert.equal((await register(slug, { full_name: 'Late', email: 'late@example.com' })).status, 200);
+  state.events[0].starts_at = new Date(Date.now() - 121 * 60 * 1000).toISOString();
+  assert.equal((await register(slug, { full_name: 'Too late', email: 'toolate@example.com' })).status, 410);
+  assert.equal((await (await fetch(`${API}/api/events/${slug}`)).json()).open, false);
+});
+
+test('staff see every event with its guest count and guest list', async () => {
+  const reference = await paidEvent();
+  const { slug } = await (await setupEvent({ reference, title: 'Tech Summit', start_time: later() })).json();
+  await register(slug, { full_name: 'Ngozi', email: 'ngozi@example.com' });
+  await register(slug, { full_name: 'Musa', email: 'musa@example.com' });
+  assert.equal((await fetch(`${API}/api/door/events`)).status, 401);
+  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  const { events } = await (await fetch(`${API}/api/door/events`, auth)).json();
+  assert.equal(events.length, 1);
+  assert.equal(events[0].guests, 2);
+  assert.equal(events[0].organiser_email, 'tola@example.com');
+  assert.equal((await fetch(`${API}/api/door/events/${events[0].id}/guests`)).status, 401);
+  const { guests } = await (await fetch(`${API}/api/door/events/${events[0].id}/guests`, auth)).json();
+  assert.deepEqual(guests.map((g) => g.name), ['Ngozi', 'Musa']);
+});
+
 test('Paystack cannot release a pass in this mode', async () => {
   const { reference } = await book();
   state.verify = { status: 'success', amount: 150000, currency: 'NGN' };
