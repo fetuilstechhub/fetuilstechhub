@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ChevronDown, Copy, Download, Plus, Trash2, Users, X } from 'lucide-react';
+import { ChevronDown, Copy, Download, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { copyText, downloadCsv, lagosToday, naira, setupLink, SignedOut, type AdminCall } from '@/lib/admin';
-import { eventDate, eventLink, eventTime, type PublicEvent } from '@/lib/events';
+import { eventDate, eventLink, eventTime, lagosTime, type PublicEvent } from '@/lib/events';
 import { eventItems } from '@/lib/plans';
 import { Button, Card, Empty, Field, SectionTitle, Spinner, inputClass, type Notify } from './ui';
 
@@ -131,7 +131,54 @@ const AddEvent = ({ call, notify, onDone }: { call: AdminCall; notify: Notify; o
   );
 };
 
+const EditEvent = ({ event, call, notify, onDone }: { event: AdminEvent; call: AdminCall; notify: Notify; onDone: (saved: boolean) => void }) => {
+  const [organiserName, setOrganiserName] = useState(event.organiser);
+  const [organiserEmail, setOrganiserEmail] = useState(event.organiser_email);
+  const [title, setTitle] = useState(event.title);
+  const [date, setDate] = useState(new Date(event.starts_at).toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' }));
+  const [startTime, setStartTime] = useState(lagosTime(event.starts_at));
+  const [description, setDescription] = useState(event.description);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await call(`events/${event.id}`, {
+        method: 'PATCH',
+        body: { organiser_name: organiserName, organiser_email: organiserEmail, title, date, start_time: startTime, description },
+      });
+      notify('Event updated. The event link stays the same.');
+      onDone(true);
+    } catch (err) {
+      if (!(err instanceof SignedOut)) notify((err as Error).message, false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={save} className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+      <Field label="Organiser's name"><input value={organiserName} onChange={(e) => setOrganiserName(e.target.value)} className={inputClass} required /></Field>
+      <Field label="Organiser's email"><input type="email" value={organiserEmail} onChange={(e) => setOrganiserEmail(e.target.value)} className={inputClass} required /></Field>
+      <Field label="Event name"><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className={inputClass} required /></Field>
+      <Field label="Event date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} required /></Field>
+      <Field label="Start time" hint="Registration closes 2 hours after this.">
+        <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputClass} required />
+      </Field>
+      <Field label="About the event">
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className="w-full rounded-xl border border-slate-300 p-3" />
+      </Field>
+      <div className="flex gap-2 sm:col-span-2">
+        <Button variant="outline" onClick={() => onDone(false)} disabled={busy}>Cancel</Button>
+        <Button type="submit" disabled={busy} className="flex-1">{busy ? 'Saving...' : 'Save changes'}</Button>
+      </div>
+    </form>
+  );
+};
+
 const EventCard = ({ event, call, notify, reload }: { event: AdminEvent; call: AdminCall; notify: Notify; reload: () => void }) => {
+  const [editing, setEditing] = useState(false);
   const [guests, setGuests] = useState<Guest[] | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -185,8 +232,10 @@ const EventCard = ({ event, call, notify, reload }: { event: AdminEvent; call: A
           </Button>
         )}
         <Button onClick={toggle}>Guest list <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} /></Button>
+        <Button variant="outline" onClick={() => setEditing((v) => !v)}><Pencil className="h-4 w-4" /> Edit</Button>
         <Button variant="danger" onClick={remove}><Trash2 className="h-4 w-4" /> Take down</Button>
       </div>
+      {editing && <EditEvent event={event} call={call} notify={notify} onDone={(saved) => { setEditing(false); if (saved) reload(); }} />}
       {open && (
         <div className="mt-3">
           {!guests ? (

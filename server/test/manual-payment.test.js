@@ -458,3 +458,28 @@ test('staff can confirm an agreed amount and correct it later, keeping the liste
   assert.equal((await adminPost('bookings/amount', { reference: unpaid, amount: 1000 })).status, 409);
   assert.equal((await post('/api/admin/bookings/amount', { reference, amount: 1 }, token)).status, 401);
 });
+
+test('staff edit an event and its organiser, keeping the link and the booking in step', async () => {
+  const { event } = await (await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() })).json();
+  const edit = (body) => fetch(`${API}/api/admin/events/${event.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+    body: JSON.stringify(body),
+  });
+  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+  const good = { organiser_name: 'Tola Adebayo', organiser_email: 'Tola.New@Example.com', title: 'Summit Day 2', date: tomorrow, start_time: '15:30', description: 'New details' };
+  assert.equal((await edit({ ...good, organiser_email: 'bad' })).status, 400);
+  assert.equal((await edit({ ...good, title: 'X' })).status, 400);
+  const res = await edit(good);
+  assert.equal(res.status, 200);
+  const page = await (await fetch(`${API}/api/events/${event.slug}`)).json();
+  assert.equal(page.title, 'Summit Day 2');
+  assert.equal(page.organiser, 'Tola Adebayo');
+  assert.equal(page.description, 'New details');
+  assert.equal(state.events[0].organiser_email, 'tola.new@example.com');
+  assert.equal(state.bookings[0].email, 'tola.new@example.com');
+  assert.equal(state.bookings[0].full_name, 'Tola Adebayo');
+  assert.equal(state.bookings[0].metadata.booking_date, tomorrow);
+  const noAuth = await fetch(`${API}/api/admin/events/${event.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(good) });
+  assert.equal(noAuth.status, 401);
+});

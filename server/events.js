@@ -29,7 +29,8 @@ const slugify = (title) =>
     .slice(0, 50) || 'event';
 
 // Checks an organiser's or admin's event details. Returns the clean values or an error message.
-export function eventDetails(body, date) {
+// allowPast lets staff fix details of an event that has already happened.
+export function eventDetails(body, date, { allowPast = false } = {}) {
   const title = oneLine(text(body.title, 120));
   const description = text(body.description, 2000);
   const startTime = text(body.start_time, 5);
@@ -37,7 +38,7 @@ export function eventDetails(body, date) {
   if (!TIME_RE.test(startTime)) return { error: 'Please choose a start time.' };
   if (!date) return { error: 'This booking has no event date. Please contact the hub.' };
   const startsAt = eventStartsAt(date, startTime);
-  if (Date.now() >= Date.parse(startsAt) + REGISTRATION_CLOSES_AFTER_MS) return { error: 'This event time has already passed.' };
+  if (!allowPast && Date.now() >= Date.parse(startsAt) + REGISTRATION_CLOSES_AFTER_MS) return { error: 'This event time has already passed.' };
   return { title, description, startsAt };
 }
 

@@ -394,6 +394,55 @@ export function adminRouter({ supabase, limiter, markPaid, sendConfirmationEmail
     });
   });
 
+  // Edits an event and its organiser. The organiser's booking is kept in step,
+  // so a resent pass goes to the corrected email and shows the right date.
+  route('patch', '/events/:id', async (req, res) => {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
+    const { data: event, error } = await supabase.from('events').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) throw new Error(`Event lookup failed: ${error.message}`);
+    if (!event) return res.status(404).json({ error: 'not_found' });
+
+    const body = req.body || {};
+    const organiserName = text(body.organiser_name, 120).replace(/\s+/g, ' ');
+    const organiserEmail = text(body.organiser_email, 254).toLowerCase();
+    const date = text(body.date, 10);
+    if (!organiserName) return res.status(400).json({ error: "Please enter the organiser's name." });
+    if (!EMAIL_RE.test(organiserEmail)) return res.status(400).json({ error: "Please enter the organiser's email." });
+    if (!DATE_RE.test(date) || Number.isNaN(Date.parse(date))) return res.status(400).json({ error: 'Please choose the event date.' });
+    const details = eventDetails(body, date, { allowPast: true });
+    if (details.error) return res.status(400).json({ error: details.error });
+
+    const { data: updated, error: updateError } = await supabase
+      .from('events')
+      .update({
+        title: details.title,
+        description: details.description,
+        starts_at: details.startsAt,
+        organiser_name: organiserName,
+        organiser_email: organiserEmail,
+      })
+      .eq('id', event.id)
+      .select()
+      .single();
+    if (updateError) throw new Error(`Event update failed: ${updateError.message}`);
+
+    const { data: booking, error: bookingError } = await supabase.from('bookings').select('*').eq('id', event.booking_id).maybeSingle();
+    if (bookingError) throw new Error(`Booking lookup failed: ${bookingError.message}`);
+    if (booking) {
+      const { error: syncError } = await supabase
+        .from('bookings')
+        .update({
+          full_name: organiserName,
+          email: organiserEmail,
+          start_time: `${date}T09:00:00.000Z`,
+          metadata: { ...booking.metadata, booking_date: date, valid_until: validUntil(date, EVENT_PLAN) },
+        })
+        .eq('id', booking.id);
+      if (syncError) throw new Error(`Booking update failed: ${syncError.message}`);
+    }
+    return res.json({ event: { ...publicEvent(updated), id: updated.id, organiser_email: updated.organiser_email } });
+  });
+
   // Takes the event page down and removes its guest list. The organiser's booking stays.
   route('delete', '/events/:id', async (req, res) => {
     if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'not_found' });
