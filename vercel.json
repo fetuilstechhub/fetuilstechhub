@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/events/setup",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/events/:slug",
+      "destination": "/api/event-preview?slug=:slug"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
