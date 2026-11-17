@@ -33,6 +33,10 @@ export const workspacePlans = [
   },
 ];
 
+export const eventItems = [
+  { id: 'event_hall', title: 'Event Hall', price: 50000, period: '/ day' },
+];
+
 export const rentalItems = [
   { id: 'studio_standard', title: 'Standard Studio Session', price: 5000, period: 'up to 90 mins' },
   { id: 'photoshoot', title: 'Professional Photoshoot', price: 3000, period: 'base session' },

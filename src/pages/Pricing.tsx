@@ -12,6 +12,7 @@ import {
   Users,
   BadgePercent,
   Clock4,
+  Presentation,
   CuboidIcon as Cube3d,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,17 @@ const Pricing = () => {
   ];
 
   const specialisedPlans = [
+    {
+      id: "event_hall",
+      title: "Event Hall",
+      description: "Book the hall at the hub for your event.",
+      price: "₦50,000",
+      period: "per day",
+      icon: Presentation,
+      features: ["Hall", "Projector", "Sound system", "Internet"],
+      ctaLabel: "Book the Hall",
+      ctaTo: "/booking?plan=event_hall",
+    },
     {
       id: "team_startup",
       title: "The Team/Startup Bundle",
@@ -295,7 +307,7 @@ const Pricing = () => {
           </div>
 
           {/* Specialised Plans */}
-          <div className="mt-16 grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="mt-16 grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {specialisedPlans.map((plan, index) => (
               <div
                 key={index}

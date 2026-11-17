@@ -10,6 +10,8 @@ export const PLANS = {
   team_startup: { title: "The 'Team/Startup' Bundle", price: 20000, days: 30, entriesPerDay: 5, photo: false },
   studio_standard: { title: 'Standard Studio Session', price: 5000, days: 1, entriesPerDay: 1, photo: false },
   photoshoot: { title: 'Professional Photoshoot', price: 3000, days: 1, entriesPerDay: 1, photo: false },
+  // Confirms the organiser's payment. The team on duty looks after their guests.
+  event_hall: { title: 'Event Hall', price: 50000, days: 1, entriesPerDay: 1, photo: false },
 };
 
 // Last day the pass is valid, as YYYY-MM-DD.

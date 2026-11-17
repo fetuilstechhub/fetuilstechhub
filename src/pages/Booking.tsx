@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Check, Loader2, Lock, MessageCircle } from 'lucide-react';
-import { workspacePlans, rentalItems } from '@/lib/plans';
+import { workspacePlans, eventItems, rentalItems } from '@/lib/plans';
 import { ONLINE_PAYMENTS, WHATSAPP_NUMBERS, whatsappLink } from '@/lib/payment';
 import BookingPass from '@/components/BookingPass';
 import Navigation from '@/components/Navigation';
@@ -12,7 +12,7 @@ import { toast } from '@/hooks/use-toast';
 
 type PlanOption = { id: string; title: string; price: number; period?: string };
 
-const allPlans: PlanOption[] = [...workspacePlans, ...rentalItems];
+const allPlans: PlanOption[] = [...workspacePlans, ...eventItems, ...rentalItems];
 const PHOTO_PLANS = ['weekly', 'monthly'];
 
 const StepHeading = ({ step, title }: { step: number; title: string }) => (
@@ -163,6 +163,12 @@ const Booking = () => {
                     visits, and delete it when your pass ends.
                   </p>
                 )}
+                <h3 className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Events</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {eventItems.map((p) => (
+                    <PlanCard key={p.id} plan={p} selected={planId === p.id} onSelect={() => setPlanId(p.id)} />
+                  ))}
+                </div>
                 <h3 className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Studio</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {rentalItems.map((p) => (

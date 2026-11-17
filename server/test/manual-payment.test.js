@@ -95,6 +95,14 @@ test('the WhatsApp message carries the server price, plan and booking code', asy
   assert.ok(message.includes(state.bookings[0].plan_title));
 });
 
+test('an event hall booking costs 50,000 for one day', async () => {
+  const { whatsapp_message: message } = await book({ ...valid, plan_id: 'event_hall' });
+  assert.ok(message.includes('Plan: Event Hall'));
+  assert.ok(message.includes('₦50,000'));
+  assert.equal(state.bookings[0].amount, 50000);
+  assert.equal(state.bookings[0].metadata.valid_until, today);
+});
+
 test('Paystack cannot release a pass in this mode', async () => {
   const { reference } = await book();
   state.verify = { status: 'success', amount: 150000, currency: 'NGN' };
