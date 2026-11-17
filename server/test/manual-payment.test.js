@@ -496,3 +496,18 @@ test('staff can permanently delete a test booking with everything linked to it',
   assert.equal(state.event_registrations.length, 0);
   assert.equal((await adminPost('bookings/delete', { reference: eventRef })).status, 404);
 });
+
+test('event link previews show the event name, date and branded image, safely', async () => {
+  const { event } = await (await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Biomedical <Expo> & "Summit"', start_time: later() })).json();
+  const res = await fetch(`${API}/api/events/${event.slug}/preview`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  const html = await res.text();
+  assert.ok(html.includes('<meta property="og:title" content="Biomedical &lt;Expo&gt; &amp; &quot;Summit&quot; · FETUILS TechHub">'));
+  assert.ok(html.includes('Register with your name and email'));
+  assert.ok(html.includes('https://fetuils.ng/og-event.png'));
+  assert.ok(html.includes(`https://fetuils.ng/events/${event.slug}`));
+  assert.ok(!html.includes('<Expo>'));
+  const missing = await (await fetch(`${API}/api/events/no-such-event/preview`)).text();
+  assert.ok(missing.includes('Event at FETUILS TechHub'));
+});

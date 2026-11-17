@@ -2,7 +2,7 @@
 // and guests register with their name and email to get an event pass by email.
 import crypto from 'crypto';
 import { Router } from 'express';
-import { guestPassEmailHtml } from './pass-email.js';
+import { escapeHtml, guestPassEmailHtml } from './pass-email.js';
 
 const REFERENCE_RE = /^[\w.=-]{1,100}$/;
 const SLUG_RE = /^[a-z0-9-]{3,80}$/;
@@ -146,6 +146,46 @@ export function eventsRouter({ supabase, limiter, sendEmail, frontendUrl }) {
     // Two saves at once for the same booking: return the one that won.
     const again = await organiserBooking(body.reference);
     return res.json(publicEvent(again.event));
+  }));
+
+  // Link previews. The website sends WhatsApp, Facebook and similar bots here for
+  // /events/<slug>, so a shared link shows the event's name and date. People never see it.
+  router.get('/:slug/preview', limiter(600), guarded(async (req, res) => {
+    const event = await findEvent(req.params.slug);
+    const url = `${frontendUrl}/events/${encodeURIComponent(req.params.slug)}`;
+    const image = `${frontendUrl}/og-event.png`;
+    let title = 'Event at FETUILS TechHub';
+    let description = 'Register for events at FETUILS TechHub, NLNG, UNILORIN.';
+    if (event) {
+      const when = new Date(event.starts_at);
+      const date = when.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' });
+      const time = when.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Africa/Lagos' });
+      title = `${event.title} · FETUILS TechHub`;
+      description = isOpen(event)
+        ? `${date}, ${time} at FETUILS TechHub, NLNG, UNILORIN. Register with your name and email to get your event pass.`
+        : `${date}, ${time} at FETUILS TechHub, NLNG, UNILORIN. Registration has closed.`;
+    }
+    const t = escapeHtml(title);
+    const d = escapeHtml(description);
+    res.set('Cache-Control', event ? 'public, max-age=300' : 'no-store');
+    res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>${t}</title>
+<meta name="description" content="${d}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FETUILS TechHub">
+<meta property="og:title" content="${t}">
+<meta property="og:description" content="${d}">
+<meta property="og:url" content="${escapeHtml(url)}">
+<meta property="og:image" content="${escapeHtml(image)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FETUILS TechHub event invitation">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${t}">
+<meta name="twitter:description" content="${d}">
+<meta name="twitter:image" content="${escapeHtml(image)}">
+<link rel="canonical" href="${escapeHtml(url)}">
+</head><body><h1>${t}</h1><p>${d}</p><p><a href="${escapeHtml(url)}">Open the event page</a></p></body></html>`);
   }));
 
   router.get('/:slug', limiter(600), guarded(async (req, res) => {

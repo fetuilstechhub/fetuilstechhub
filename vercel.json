@@ -6,7 +6,14 @@
     },
     {
       "source": "/events/:slug",
-      "destination": "/api/event-preview?slug=:slug"
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(whatsapp|facebookexternalhit|facebot|twitterbot|telegrambot|linkedinbot|slackbot|discordbot|skypeuripreview|pinterest|redditbot|applebot|googlebot|bingbot|embedly|iframely|vkshare|snapchat).*"
+        }
+      ],
+      "destination": "https://fetuilstechhub.onrender.com/api/events/:slug/preview"
     },
     {
       "source": "/(.*)",
