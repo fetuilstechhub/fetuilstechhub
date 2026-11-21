@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, Undo2 } from 'lucide-react';
+import { ChevronRight, Mail, Undo2 } from 'lucide-react';
 import { Card, Empty, type Notify } from '@/components/admin/ui';
 import { Badges, StatusPill } from './bits';
+import BulkEmail from './BulkEmail';
 import ContactBox, { type Asked } from './ContactBox';
 import { CONTACTABLE, SignedOut, statusLabel, teamLabel, type Activity, type Application, type Call, type Login, type Settings, type Status } from './api';
 
@@ -32,6 +33,8 @@ export default function ContactQueue({
   const [status, setStatus] = useState<Status>('shortlisted');
   const [skipped, setSkipped] = useState<string[]>([]);
   const [last, setLast] = useState<{ app: Application; entry: Activity } | null>(null);
+  // A fixed copy of who gets the bulk email, so the list doesn't shift while sending.
+  const [bulk, setBulk] = useState<Application[] | null>(null);
 
   const waiting = useMemo(
     () => apps.filter((a) => a.status === status && !a.contacted).sort((a, b) => (b.score ?? -1) - (a.score ?? -1)),
@@ -63,6 +66,7 @@ export default function ContactQueue({
               onClick={() => {
                 setStatus(s);
                 setSkipped([]);
+                setBulk(null);
               }}
               className={`h-10 flex-shrink-0 rounded-full px-4 text-sm font-semibold ${status === s ? 'bg-[#0B1F3F] text-white' : 'border border-slate-300 bg-white text-slate-600'}`}
             >
@@ -71,6 +75,31 @@ export default function ContactQueue({
           );
         })}
       </div>
+
+      {!bulk && waiting.some((a) => a.applicant_email) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
+          <span className="text-sm text-slate-600">Message everyone at once instead of one by one:</span>
+          <button type="button" onClick={() => setBulk(waiting)} className="flex h-10 items-center gap-2 rounded-xl bg-[#0B1F3F] px-4 text-sm font-semibold text-white">
+            <Mail className="h-4 w-4" /> Email all {waiting.filter((a) => a.applicant_email).length}
+          </button>
+        </div>
+      )}
+
+      {bulk && (
+        <BulkEmail
+          apps={bulk}
+          status={status}
+          login={login}
+          leadName={leadName}
+          settings={settings}
+          call={call}
+          notify={notify}
+          replace={replace}
+          asked={asked}
+          setAsked={setAsked}
+          onClose={() => setBulk(null)}
+        />
+      )}
 
       {last && (
         <div className="flex items-center justify-between gap-2 rounded-xl bg-slate-800 px-3 py-2 text-sm text-white">
@@ -85,7 +114,7 @@ export default function ContactQueue({
         </div>
       )}
 
-      {!current ? (
+      {bulk ? null : !current ? (
         <Card>
           <Empty>
             {skipped.length ? (

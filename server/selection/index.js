@@ -20,6 +20,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
 const UNIQUE_VIOLATION = '23505';
 const PAGE = 1000;
 const CHUNK = 200;
+const BULK_MAX = 25;
 
 const text = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 const oneLine = (value, max) => text(value, max).replace(/[\r\n]+/g, ' ');
@@ -274,6 +275,53 @@ export function selectionRouter({ supabase, limiter, sendEmail, tokenSecret, fro
     if (error) throw new Error(`Contact update failed: ${error.message}`);
     return res.json({ activity: entry, contacted: true, last_contacted_at: now });
   }, { max: 300 });
+
+  // Emails many selected applicants at once. Each message is already personalised by the page;
+  // every applicant is checked again here (your team, selected, valid email) before sending.
+  // The page sends a few at a time so it can show progress.
+  route('post', '/contact-bulk', async (req, res) => {
+    const list = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    if (!list.length) return res.status(400).json({ error: 'Nobody to email.' });
+    if (list.length > BULK_MAX) return res.status(400).json({ error: `Send at most ${BULK_MAX} at a time.` });
+    const ids = [...new Set(list.map((m) => m?.id).filter((id) => typeof id === 'string' && UUID_RE.test(id)))];
+    const { data: rows, error } = await supabase.from('sel_applications').select('*').in('id', ids);
+    if (error) throw new Error(`Applicants lookup failed: ${error.message}`);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const settings = await loadSettings();
+    const replyTo = EMAIL_RE.test(settings.reply_to_email) ? { reply_to: settings.reply_to_email } : {};
+    const templateId = oneLine(req.body?.template_id, 60);
+    const results = [];
+
+    for (const m of list) {
+      const app = byId.get(m?.id);
+      const name = app?.applicant_name ?? '';
+      const subject = oneLine(m?.subject, 200);
+      const message = text(m?.body, 4000);
+      let reason = '';
+      if (!app || !canSee(req.login, app.team)) reason = 'Not found';
+      else if (!CONTACTABLE.includes(app.status)) reason = 'Not selected';
+      else if (!EMAIL_RE.test(app.applicant_email)) reason = 'No valid email';
+      else if (!subject || !message) reason = 'Empty message';
+      if (reason) {
+        results.push({ id: m?.id, name, ok: false, reason });
+        continue;
+      }
+      try {
+        // One at a time keeps within the email provider's sending speed.
+        await sendEmail({ to: app.applicant_email, subject, html: messageEmailHtml({ body: message, frontendUrl }), ...replyTo });
+      } catch (err) {
+        console.error('[SELECTION] Bulk email failed for', app.id, err.message);
+        results.push({ id: app.id, name, ok: false, reason: 'Email could not be sent' });
+        continue;
+      }
+      const now = new Date().toISOString();
+      await logActivity([{ application_id: app.id, kind: 'message', channel: 'email', template_id: templateId, text: message, ...who(req) }]);
+      const { error: updateError } = await supabase.from('sel_applications').update({ contacted: true, last_contacted_at: now }).eq('id', app.id);
+      if (updateError) console.error('[SELECTION] Contact update failed', updateError.message);
+      results.push({ id: app.id, name, ok: true, last_contacted_at: now });
+    }
+    return res.json({ results });
+  }, { max: 100 });
 
   // Takes back a WhatsApp or Copy log that was opened by mistake. Sent emails stay on record.
   route('post', '/activity/:id/undo', async (req, res) => {

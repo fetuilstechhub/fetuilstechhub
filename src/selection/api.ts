@@ -182,3 +182,21 @@ export const randomPassword = () => {
   crypto.getRandomValues(n);
   return `${words[n[0] % words.length]}-${words[n[1] % words.length]}-${words[n[2] % words.length]}-${words[n[3] % words.length]}-${(n[4] % 90) + 10}`;
 };
+
+// The values that fill a template's {{placeholders}} for one applicant.
+export const messageValues = (
+  app: Application,
+  settings: Settings,
+  leadName: string,
+  leadTeam: string,
+  asked: Record<string, string>,
+): Record<string, string> => ({
+  firstName: firstName(app.applicant_name),
+  fullName: app.applicant_name,
+  team: teamLabel(app.team),
+  leadName,
+  leadTeam,
+  groupLink: settings.group_link,
+  session: settings.session_name,
+  ...asked,
+});

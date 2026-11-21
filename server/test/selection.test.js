@@ -280,3 +280,32 @@ test('a team with two leads splits its unreviewed applicants evenly', async () =
   const moved = await call(`applications/${one.id}`, { token: admin, method: 'PATCH', body: { assigned_to: 'Kemi' } });
   assert.equal(moved.body.application.assigned_to, 'Kemi');
 });
+
+test('email all: sends to selected applicants only, each checked on the server', async () => {
+  const sales = await signIn('sales@hub.local', 'sales-pass-2026');
+  const apps = (await call('applications', { token: admin })).body.applications;
+  const bayo = apps.find((a) => a.applicant_email === 'bayo@gmail.com');
+  const pat = apps.find((a) => a.applicant_email === 'p1@gmail.com');
+  await call(`applications/${bayo.id}`, { token: admin, method: 'PATCH', body: { status: 'shortlisted' } });
+  const before = state.emails.length;
+  const { body } = await call('contact-bulk', {
+    token: sales,
+    body: {
+      template_id: 'shortlisted',
+      messages: [
+        { id: bayo.id, subject: 'Hi Bayo', body: 'Hello Bayo' },
+        { id: pat.id, subject: 'Hi Pat', body: 'Hello Pat' },
+      ],
+    },
+  });
+  assert.deepEqual(body.results.map((r) => [r.ok, r.reason ?? '']), [[true, ''], [false, 'Not found']], 'another team is refused');
+  assert.equal(state.emails.length, before + 1);
+  assert.equal(state.emails[before].to, 'bayo@gmail.com');
+  assert.equal(state.sel_applications.find((a) => a.id === bayo.id).contacted, true);
+
+  const kemi = apps.find((a) => a.applicant_email === 'p2@gmail.com');
+  const design = await call('contact-bulk', { token: admin, body: { messages: [{ id: kemi.id, subject: 's', body: 'b' }] } });
+  assert.equal(design.body.results[0].reason, 'Not selected');
+  const tooMany = Array.from({ length: 26 }, () => ({ id: bayo.id, subject: 's', body: 'b' }));
+  assert.equal((await call('contact-bulk', { token: admin, body: { messages: tooMany } })).status, 400);
+});
