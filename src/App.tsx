@@ -19,6 +19,8 @@ const Door = lazy(() => import('./pages/Door'));
 const Admin = lazy(() => import('./pages/Admin'));
 const EventSetup = lazy(() => import('./pages/EventSetup'));
 const EventPage = lazy(() => import('./pages/EventPage'));
+// Core team selection: temporary. See server/selection/README.md to remove it.
+const Selection = lazy(() => import('./selection/SelectionPage'));
 
 const queryClient = new QueryClient();
 
@@ -72,6 +74,14 @@ const App = () => (
             element={
               <Suspense fallback={null}>
                 <EventPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path='/selection'
+            element={
+              <Suspense fallback={null}>
+                <Selection />
               </Suspense>
             }
           />

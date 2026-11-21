@@ -123,9 +123,11 @@ async function paidEvent() {
 }
 const setupEvent = (body) => post('/api/events/setup', body);
 const register = (slug, body) => post(`/api/events/${slug}/register`, body);
+// A start time later today. Late in the evening, 3 hours ahead would wrap past midnight, so use 23:59.
 const later = () => {
-  const d = new Date(Date.now() + 3 * 60 * 60 * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' });
-  return d < '21:00' ? d : '23:59';
+  const clock = (ms) => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' });
+  const d = clock(Date.now() + 3 * 60 * 60 * 1000);
+  return d > clock(Date.now()) ? d : '23:59';
 };
 
 test('the Event Hall pass email links the organiser to their event setup', async () => {

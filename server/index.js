@@ -10,6 +10,8 @@ import { doorRouter } from './door.js';
 import { eventsRouter } from './events.js';
 import { adminRouter } from './admin.js';
 import { emailProviders, sendEmail } from './email.js';
+// Core team selection: temporary. See server/selection/README.md to remove it.
+import { selectionRouter } from './selection/index.js';
 
 dotenv.config();
 
@@ -397,6 +399,9 @@ app.use(
     staffPin: process.env.STAFF_PIN,
   }),
 );
+
+// Core team selection: temporary. See server/selection/README.md to remove it.
+app.use('/api/selection', selectionRouter({ supabase, limiter, sendEmail, tokenSecret: SUPABASE_SERVICE_ROLE_KEY, frontendUrl: FRONTEND_URL }));
 
 // Bad JSON and similar errors: reply with JSON rather than an HTML stack trace.
 app.use((err, req, res, next) => {

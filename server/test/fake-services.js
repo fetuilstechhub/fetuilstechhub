@@ -8,6 +8,11 @@ export const emptyState = () => ({
   pass_photos: [],
   events: [],
   event_registrations: [],
+  sel_logins: [],
+  sel_applications: [],
+  sel_activity: [],
+  sel_settings: [],
+  sel_imports: [],
   emails: [],
   paystackInits: [],
   verify: null,
@@ -24,6 +29,19 @@ const readBody = (req) =>
     req.on('data', (chunk) => (data += chunk));
     req.on('end', () => resolve(data));
   });
+
+// Column defaults for the selection tables, as in supabase/selection.sql.
+const DEFAULTS = {
+  sel_applications: () => ({ team: 'unassigned', team_locked: false, status: 'new', rubric: {}, score: null, track: '', contacted: false, last_contacted_at: null }),
+  sel_activity: () => ({ undone: false }),
+};
+const UNIQUE = {
+  events: ['booking_id', 'slug'],
+  event_registrations: [['event_id', 'email']],
+  sel_logins: ['email'],
+  sel_applications: ['source_key'],
+  sel_settings: ['key'],
+};
 
 const matchesFilter = (row, key, value) => {
   const actual = String(row[key]);
@@ -48,7 +66,7 @@ export function createFakeServices(state, port) {
       res.end(JSON.stringify(value));
     };
 
-    const table = url.pathname.match(/^\/rest\/v1\/(bookings|check_ins|pass_photos|events|event_registrations)$/)?.[1];
+    const table = url.pathname.match(/^\/rest\/v1\/(bookings|check_ins|pass_photos|events|event_registrations|sel_logins|sel_applications|sel_activity|sel_settings|sel_imports)$/)?.[1];
     if (table) {
       let rows = state[table].filter((row) => [...url.searchParams].every(([k, v]) => matchesFilter(row, k, v)));
       if (url.searchParams.get('order')?.includes('desc')) rows = [...rows].reverse();
@@ -58,27 +76,41 @@ export function createFakeServices(state, port) {
       if (req.method === 'GET') return reply(rows);
       if (state.failDbWrites) return send(500, { message: 'db down' });
       if (req.method === 'POST') {
-        const row = {
-          id: crypto.randomUUID(),
-          created_at: new Date(Date.now() + sequence++).toISOString(),
-          ...JSON.parse(body)[0],
-        };
-        if (table === 'check_ins') {
-          const clash = state.check_ins.some(
-            (c) => c.booking_id === row.booking_id && c.check_in_date === row.check_in_date && c.slot === row.slot,
-          );
-          if (clash) return send(409, { code: '23505', message: 'duplicate key' });
+        const merge = (req.headers.prefer || '').includes('resolution=merge-duplicates');
+        const conflictKey = url.searchParams.get('on_conflict');
+        const written = [];
+        for (const input of [].concat(JSON.parse(body))) {
+          if (merge && conflictKey) {
+            const found = state[table].find((r) => r[conflictKey] === input[conflictKey]);
+            if (found) {
+              Object.assign(found, input);
+              written.push(found);
+              continue;
+            }
+          }
+          const row = {
+            id: crypto.randomUUID(),
+            created_at: new Date(Date.now() + sequence++).toISOString(),
+            ...(DEFAULTS[table]?.() ?? {}),
+            ...input,
+          };
+          if (table === 'check_ins') {
+            const clash = state.check_ins.some(
+              (c) => c.booking_id === row.booking_id && c.check_in_date === row.check_in_date && c.slot === row.slot,
+            );
+            if (clash) return send(409, { code: '23505', message: 'duplicate key' });
+          }
+          for (const key of UNIQUE[table] ?? []) {
+            const keys = Array.isArray(key) ? key : [key];
+            if (state[table].some((r) => keys.every((k) => r[k] === row[k]))) return send(409, { code: '23505', message: 'duplicate key' });
+          }
+          if (table === 'pass_photos') {
+            state.pass_photos = state.pass_photos.filter((p) => p.booking_id !== row.booking_id);
+          }
+          state[table].push(row);
+          written.push(row);
         }
-        const uniqueOn = { events: ['booking_id', 'slug'], event_registrations: [['event_id', 'email']] }[table] ?? [];
-        for (const key of uniqueOn) {
-          const keys = Array.isArray(key) ? key : [key];
-          if (state[table].some((r) => keys.every((k) => r[k] === row[k]))) return send(409, { code: '23505', message: 'duplicate key' });
-        }
-        if (table === 'pass_photos') {
-          state.pass_photos = state.pass_photos.filter((p) => p.booking_id !== row.booking_id);
-        }
-        state[table].push(row);
-        return reply([row]);
+        return reply(written);
       }
       if (req.method === 'PATCH') {
         rows.forEach((row) => Object.assign(row, JSON.parse(body)));

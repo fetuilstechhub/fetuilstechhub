@@ -15,5 +15,6 @@ Allow: /
 Disallow: /door
 Disallow: /admin
 Disallow: /events/setup
+Disallow: /selection
 
 Sitemap: https://www.fetuils.ng/sitemap.xml
