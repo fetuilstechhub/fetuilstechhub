@@ -30,6 +30,8 @@ const describe = (a: Activity) => {
       return `Track: ${a.to_value || 'none'}`;
     case 'message':
       return `${a.channel === 'email' ? 'Email sent' : a.channel === 'whatsapp' ? 'WhatsApp opened' : 'Message copied'}${a.undone ? ' (taken back)' : ''}`;
+    case 'reviewer':
+      return `Reviewer: ${a.to_value || 'anyone'}`;
     case 'import':
       return a.text ?? 'Imported';
     default:
@@ -49,6 +51,7 @@ export default function ApplicantDrawer({
   asked,
   setAsked,
   onClose,
+  reviewers,
 }: {
   app: Application;
   login: Login;
@@ -61,6 +64,7 @@ export default function ApplicantDrawer({
   asked: Asked;
   setAsked: (a: Asked) => void;
   onClose: () => void;
+  reviewers: string[];
 }) {
   const id = app.id;
   const [activity, setActivity] = useState<Activity[] | null>(null);
@@ -177,8 +181,17 @@ export default function ApplicantDrawer({
               {app.problems.length > 0 && <ul className="mt-2 list-disc pl-5 text-amber-800">{app.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
             </div>
 
-            {(isAdmin || app.team === 'technical') && (
+            {(isAdmin || app.team === 'technical' || reviewers.length > 0) && (
               <div className="grid gap-3 sm:grid-cols-2">
+                {reviewers.length > 0 && (
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-[#0B1F3F]">Reviewed by</span>
+                    <select value={app.assigned_to} onChange={(e) => change({ assigned_to: e.target.value })} className={inputClass}>
+                      <option value="">Anyone</option>
+                      {[...new Set([...reviewers, app.assigned_to].filter(Boolean))].map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </label>
+                )}
                 {isAdmin && (
                   <label className="block text-sm">
                     <span className="mb-1 block font-medium text-[#0B1F3F]">Team</span>

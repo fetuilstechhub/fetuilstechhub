@@ -26,6 +26,8 @@ export default function ListView({
   const [hours, setHours] = useState('');
   const [onSite, setOnSite] = useState('');
   const [flag, setFlag] = useState('');
+  const [reviewer, setReviewer] = useState('');
+  const reviewers = useMemo(() => [...new Set(apps.map((a) => a.assigned_to).filter(Boolean))].sort(), [apps]);
   const [sort, setSort] = useState<Sort>('oldest');
   const [shown, setShown] = useState(PAGE);
 
@@ -37,6 +39,7 @@ export default function ListView({
       if (status && a.status !== status) return false;
       if (hours && a.hours_bucket !== hours) return false;
       if (onSite && a.on_site_bucket !== onSite) return false;
+      if (reviewer && a.assigned_to !== reviewer) return false;
       if (flag === 'returning' && !a.returning_intern) return false;
       if (flag === 'contacted' && !a.contacted) return false;
       if (flag === 'not-contacted' && a.contacted) return false;
@@ -53,15 +56,15 @@ export default function ListView({
       name: (a, b) => a.applicant_name.localeCompare(b.applicant_name),
     };
     return out.sort(by[sort]);
-  }, [apps, query, status, hours, onSite, flag, sort]);
+  }, [apps, query, status, hours, onSite, flag, sort, reviewer]);
 
   const exportCsv = () =>
     downloadCsv(`selection-${scopeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv`, [
-      ['Name', 'Team', 'Status', 'Score', 'Email', 'Phone', 'Faculty/Department', ...(showPrivate ? ['Matric'] : []), 'Hours', 'On site', 'Returning', 'Contacted', 'Applied'],
+      ['Name', 'Team', 'Status', 'Score', 'Email', 'Phone', 'Faculty/Department', ...(showPrivate ? ['Matric'] : []), 'Hours', 'On site', 'Returning', 'Contacted', 'Reviewer', 'Applied'],
       ...list.map((a) => [
         a.applicant_name, teamLabel(a.team), statusLabel(a.status), a.score ?? '', a.applicant_email, a.phone, a.faculty_dept,
         ...(showPrivate ? [a.matric_number ?? ''] : []), a.hours_per_week, a.available_on_site, a.returning_intern ? 'Yes' : 'No',
-        a.contacted ? 'Yes' : 'No', a.submitted_at ?? '',
+        a.contacted ? 'Yes' : 'No', a.assigned_to, a.submitted_at ?? '',
       ]),
     ]);
 
@@ -115,7 +118,13 @@ export default function ListView({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-slate-600">{list.length} shown</span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {reviewers.length > 0 && (
+            <select aria-label="Reviewer" value={reviewer} onChange={(e) => setReviewer(e.target.value)} className={`${inputClass} w-auto`}>
+              <option value="">Any reviewer</option>
+              {reviewers.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          )}
           <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className={`${inputClass} w-auto`}>
             <option value="oldest">Applied first</option>
             <option value="newest">Applied last</option>

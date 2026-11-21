@@ -79,6 +79,7 @@ export type Application = {
   score: number | null;
   track: '' | 'innovation' | 'training';
   contacted: boolean;
+  assigned_to: string;
   last_contacted_at: string | null;
   updated_at: string | null;
   updated_by: string;
@@ -86,7 +87,7 @@ export type Application = {
 
 export type Activity = {
   id: string;
-  kind: 'status' | 'score' | 'note' | 'message' | 'team' | 'track' | 'import';
+  kind: 'status' | 'score' | 'note' | 'message' | 'team' | 'track' | 'import' | 'reviewer';
   from_value: string | null;
   to_value: string | null;
   text: string | null;

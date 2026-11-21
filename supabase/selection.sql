@@ -90,3 +90,6 @@ create table if not exists sel_imports (
   created_at timestamptz default now()
 );
 alter table sel_imports enable row level security;
+
+-- Which of a team's leads reviews each applicant, when a team splits its list. Safe to run again.
+alter table sel_applications add column if not exists assigned_to text not null default '';

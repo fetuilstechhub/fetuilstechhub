@@ -128,6 +128,7 @@ export default function SelectionPage() {
   const notify = useCallback((text: string, good = true) => setNotice({ text, good }), []);
   const closeDetail = useCallback(() => setDetailId(null), []);
 
+
   const loadApps = useCallback(async () => {
     try {
       setApps((await call<{ applications: Application[] }>('applications')).applications);
@@ -135,6 +136,21 @@ export default function SelectionPage() {
       if (!(err instanceof SignedOut)) notify((err as Error).message, false);
     }
   }, [call, notify]);
+
+  const split = useCallback(
+    async (team: string, names: string[]) => {
+      try {
+        const { split: result } = await call<{ split: { name: string; count: number }[] }>('split', { body: { team, names, by: leadName } });
+        notify(`Split done: ${result.map((s) => `${s.name} ${s.count}`).join(', ')}.`);
+        await loadApps();
+        return true;
+      } catch (err) {
+        if (!(err instanceof SignedOut)) notify((err as Error).message, false);
+        return false;
+      }
+    },
+    [call, leadName, notify, loadApps],
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -307,7 +323,16 @@ export default function SelectionPage() {
             {isAdmin ? 'No applicants yet. Open Import to add them from the Google Sheet.' : 'No applicants for your team yet. The Lead will import them soon.'}
           </p>
         )}
-        {view === 'review' && apps.length > 0 && <ReviewView key={scope} apps={inScope} showPrivate={isAdmin} patch={patch} openDetail={setDetailId} />}
+        {view === 'review' && apps.length > 0 && <ReviewView
+            key={scope}
+            apps={inScope}
+            showPrivate={isAdmin}
+            leadName={leadName}
+            canSplit={scope !== 'all' && scope !== 'unassigned'}
+            onSplit={(names) => split(scope, names)}
+            patch={patch}
+            openDetail={setDetailId}
+          />}
         {view === 'list' && apps.length > 0 && <ListView key={scope} apps={inScope} showTeam={scope === 'all'} showPrivate={isAdmin} scopeName={scopeName} openDetail={setDetailId} />}
         {view === 'contact' && apps.length > 0 && (
           <ContactQueue key={scope} apps={inScope} login={login} leadName={leadName} settings={settings} call={call} notify={notify} replace={replace} asked={asked} setAsked={setAsked} openDetail={setDetailId} />
@@ -331,6 +356,7 @@ export default function SelectionPage() {
           asked={asked}
           setAsked={setAsked}
           onClose={closeDetail}
+          reviewers={[...new Set(apps.filter((a) => a.team === apps.find((x) => x.id === detailId)?.team).map((a) => a.assigned_to).filter(Boolean))]}
         />
       )}
     </div>

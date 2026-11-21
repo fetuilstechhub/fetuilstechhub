@@ -173,8 +173,18 @@ export function selectionRouter({ supabase, limiter, sendEmail, tokenSecret, fro
       if (!TEAM_IDS.includes(body.team)) return res.status(400).json({ error: 'Unknown team.' });
       if (body.team !== application.team) {
         // Locked, so a later re-import never moves them back.
-        Object.assign(changes, { team: body.team, team_locked: true, ...(body.team !== 'technical' ? { track: '' } : {}) });
+        // The new team's leads split their own applicants, so the reviewer is cleared.
+        Object.assign(changes, { team: body.team, team_locked: true, assigned_to: '', ...(body.team !== 'technical' ? { track: '' } : {}) });
         activity.push({ ...base, kind: 'team', from_value: application.team, to_value: body.team });
+      }
+    }
+
+    // Which of the team's leads reviews this applicant ('' = anyone).
+    if (body.assigned_to !== undefined && !changes.team) {
+      const reviewer = oneLine(body.assigned_to, 60);
+      if (reviewer !== (application.assigned_to ?? '')) {
+        changes.assigned_to = reviewer;
+        activity.push({ ...base, kind: 'reviewer', from_value: application.assigned_to ?? '', to_value: reviewer });
       }
     }
 
@@ -186,6 +196,34 @@ export function selectionRouter({ supabase, limiter, sendEmail, tokenSecret, fro
     await logActivity(activity);
     return res.json({ application: forViewer(data[0], req.login) });
   });
+
+  // Shares a team's unreviewed applicants evenly between its leads, in the order they applied.
+  // Applicants already reviewed keep whoever they were with.
+  route('post', '/split', async (req, res) => {
+    const team = req.body?.team;
+    if (!LEAD_TEAM_IDS.includes(team) || !canSee(req.login, team)) return res.status(404).json({ error: 'Team not found.' });
+    const raw = Array.isArray(req.body?.names) ? req.body.names : [];
+    const names = [];
+    for (const n of raw.map((x) => oneLine(x, 60)).filter(Boolean)) {
+      if (!names.some((m) => m.toLowerCase() === n.toLowerCase())) names.push(n);
+    }
+    if (names.length < 2 || names.length > 6) return res.status(400).json({ error: 'Add between 2 and 6 different names.' });
+
+    const rows = await fetchAll(() =>
+      supabase.from('sel_applications').select('id,submitted_at').eq('team', team).eq('status', 'new').order('submitted_at', { ascending: true }),
+    );
+    const groups = names.map(() => []);
+    rows.forEach((r, i) => groups[i % names.length].push(r.id));
+    const now = new Date().toISOString();
+    const by = [who(req).by_login, who(req).by_name].filter(Boolean).join(': ');
+    for (const [i, ids] of groups.entries()) {
+      for (const part of chunks(ids, CHUNK)) {
+        const { error } = await supabase.from('sel_applications').update({ assigned_to: names[i], updated_at: now, updated_by: by }).in('id', part);
+        if (error) throw new Error(`Split failed: ${error.message}`);
+      }
+    }
+    return res.json({ split: names.map((name, i) => ({ name, count: groups[i].length })) });
+  }, { max: 60 });
 
   route('post', '/applications/:id/notes', async (req, res) => {
     const application = await findApplication(req);

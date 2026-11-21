@@ -32,7 +32,7 @@ const readBody = (req) =>
 
 // Column defaults for the selection tables, as in supabase/selection.sql.
 const DEFAULTS = {
-  sel_applications: () => ({ team: 'unassigned', team_locked: false, status: 'new', rubric: {}, score: null, track: '', contacted: false, last_contacted_at: null }),
+  sel_applications: () => ({ team: 'unassigned', team_locked: false, assigned_to: '', status: 'new', rubric: {}, score: null, track: '', contacted: false, last_contacted_at: null }),
   sel_activity: () => ({ undone: false }),
 };
 const UNIQUE = {

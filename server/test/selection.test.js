@@ -257,3 +257,26 @@ test('settings: templates are editable by the admin only', async () => {
   const [bayo] = (await call('applications', { token: sales })).body.applications;
   assert.equal((await call(`applications/${bayo.id}`, { token: sales, method: 'PATCH', body: { status: 'accepted' } })).status, 200);
 });
+
+test('a team with two leads splits its unreviewed applicants evenly', async () => {
+  const csv = sheet([
+    ['11/7/2026 10:00:00', 'p1@gmail.com', 'Pat One', '', '08011110001', 'Yes', 'Arts', '', 'Design Intern', '', 'No', '5 hours', 'Yes', '', 'x'],
+    ['11/7/2026 11:00:00', 'p2@gmail.com', 'Pat Two', '', '08011110002', 'Yes', 'Arts', '', 'Design Intern', '', 'No', '5 hours', 'Yes', '', 'x'],
+    ['11/7/2026 12:00:00', 'p3@gmail.com', 'Pat Three', '', '08011110003', 'Yes', 'Arts', '', 'Design Intern', '', 'No', '5 hours', 'Yes', '', 'x'],
+  ].map((r) => [...r, '']));
+  await call('import', { token: admin, csv, query: '?commit=1' });
+  const sales = await signIn('sales@hub.local', 'sales-pass-2026');
+  assert.equal((await call('split', { token: sales, body: { team: 'design', names: ['A', 'B'] } })).status, 404, 'only your own team');
+  assert.equal((await call('split', { token: admin, body: { team: 'design', names: ['Tolu', 'tolu'] } })).status, 400, 'two different names');
+
+  const { body } = await call('split', { token: admin, body: { team: 'design', names: ['Tolu', 'Kemi'] } });
+  const newDesign = state.sel_applications.filter((a) => a.team === 'design' && a.status === 'new');
+  assert.deepEqual(body.split.map((s) => s.count).reduce((a, b) => a + b, 0), newDesign.length);
+  assert.ok(Math.abs(body.split[0].count - body.split[1].count) <= 1);
+  assert.ok(newDesign.every((a) => ['Tolu', 'Kemi'].includes(a.assigned_to)));
+  assert.ok(state.sel_applications.filter((a) => a.team === 'design' && a.status !== 'new').every((a) => !['Tolu', 'Kemi'].includes(a.assigned_to)), 'reviewed ones are left alone');
+
+  const one = newDesign[0];
+  const moved = await call(`applications/${one.id}`, { token: admin, method: 'PATCH', body: { assigned_to: 'Kemi' } });
+  assert.equal(moved.body.application.assigned_to, 'Kemi');
+});

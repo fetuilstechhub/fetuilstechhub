@@ -24,6 +24,7 @@ export const Badges = ({ app }: { app: Application }) => (
     {!app.phone_wa && <Tag tone="red">Check phone number</Tag>}
     {app.contacted && <Tag tone="emerald">Message opened {day(app.last_contacted_at)}</Tag>}
     {app.track && <Tag>{app.track === 'innovation' ? 'Innovation' : 'Training'}</Tag>}
+    {app.assigned_to && <Tag>Reviewer: {app.assigned_to}</Tag>}
   </span>
 );
 
