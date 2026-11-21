@@ -373,7 +373,7 @@ export function selectionRouter({ supabase, limiter, sendEmail, tokenSecret, fro
 
   route('post', '/logins', async (req, res) => {
     const email = text(req.body?.email, 200).toLowerCase();
-    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
     const role = req.body?.role === 'admin' ? 'admin' : 'lead';
     const teams = cleanTeams(req.body?.teams) ?? [];
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Use an email-style login, for example design@hub.local.' });
@@ -412,10 +412,10 @@ export function selectionRouter({ supabase, limiter, sendEmail, tokenSecret, fro
       if (!changes.active) signOut = true;
     }
     if (body.password !== undefined) {
-      if (typeof body.password !== 'string' || body.password.length < MIN_PASSWORD || body.password.length > 200) {
+      if (typeof body.password !== 'string' || body.password.trim().length < MIN_PASSWORD || body.password.length > 200) {
         return res.status(400).json({ error: `The password must be at least ${MIN_PASSWORD} characters.` });
       }
-      changes.password_hash = await hashPassword(body.password);
+      changes.password_hash = await hashPassword(body.password.trim());
       signOut = true;
     }
     // Fewer teams or a role change also signs devices out, so they reload what they can see.

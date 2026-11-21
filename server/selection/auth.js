@@ -38,10 +38,14 @@ const DUMMY_HASH = `scrypt$${Buffer.alloc(16).toString('base64')}$${Buffer.alloc
 
 export function selectionAuth({ supabase, tokenSecret }) {
   const secret = `${tokenSecret}:selection`;
-  const adminEmail = (process.env.SELECTION_ADMIN_EMAIL || '').trim().toLowerCase();
-  const adminPassword = process.env.SELECTION_ADMIN_PASSWORD || '';
+  // Values pasted into Render often pick up spaces or quotes around them; ignore those.
+  const clean = (value) => String(value || '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+  const adminEmail = clean(process.env.SELECTION_ADMIN_EMAIL).toLowerCase();
+  const adminPassword = clean(process.env.SELECTION_ADMIN_PASSWORD);
   const envAdminOn = !!adminEmail && adminPassword.length >= MIN_ADMIN_PASSWORD;
-  if (adminEmail && !envAdminOn) console.warn(`SELECTION_ADMIN_PASSWORD must be at least ${MIN_ADMIN_PASSWORD} characters: the selection admin login is off`);
+  if (!adminEmail) console.warn('[SELECTION] SELECTION_ADMIN_EMAIL is not set: the main selection admin login is off');
+  else if (!envAdminOn) console.warn(`[SELECTION] SELECTION_ADMIN_PASSWORD is missing or shorter than ${MIN_ADMIN_PASSWORD} characters: the main selection admin login is off`);
+  else console.log(`[SELECTION] Main admin login is on (password is ${adminPassword.length} characters)`);
   // Changing SELECTION_ADMIN_PASSWORD changes this, which signs the admin out everywhere.
   const envVersion = crypto.createHmac('sha256', secret).update(adminPassword).digest('hex').slice(0, 16);
 
@@ -104,7 +108,8 @@ export function selectionAuth({ supabase, tokenSecret }) {
     async (req, res) => {
       try {
         const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 200) : '';
-        const password = typeof req.body?.password === 'string' ? req.body.password.slice(0, 200) : '';
+        // Phones sometimes add a space after a pasted password.
+        const password = typeof req.body?.password === 'string' ? req.body.password.trim().slice(0, 200) : '';
         if (!email || !password) return res.status(401).json({ error: 'Wrong email or password.' });
 
         if (envAdminOn && safeEqual(email, adminEmail)) {
