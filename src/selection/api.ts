@@ -2,6 +2,10 @@
 const TOKEN_KEY = 'selection_token';
 const NAME_KEY = 'selection_name';
 export const SELECTION_API = `${import.meta.env.VITE_API_BASE_URL}/api/selection`;
+// Where leads send problems and questions about the tool.
+export const HELP_EMAIL = 'fetuilstechhub@gmail.com';
+export const helpLink = (login?: string) =>
+  `mailto:${HELP_EMAIL}?subject=${encodeURIComponent(`Core team selection help${login ? ` (${login})` : ''}`)}`;
 
 const read = (key: string) => {
   try {

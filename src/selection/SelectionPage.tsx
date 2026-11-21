@@ -9,7 +9,9 @@ import ReviewView from './ReviewView';
 import { ImportView, LoginsView, SettingsView, SummaryView } from './AdminViews';
 import type { Asked } from './ContactBox';
 import {
+  HELP_EMAIL,
   SELECTION_API,
+  helpLink,
   SignedOut,
   TEAMS,
   getName,
@@ -73,6 +75,9 @@ const SignIn = ({ onSignedIn }: { onSignedIn: (token: string, login: Login) => v
       <button type="submit" disabled={busy || !email || !password} className="flex h-12 items-center justify-center rounded-xl bg-[#0B1F3F] font-bold text-white disabled:opacity-60">
         {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sign in'}
       </button>
+      <p className="text-center text-sm text-slate-500">
+        Can't sign in or have a question? Email <a href={helpLink()} className="font-semibold text-[#E8481C] underline">{HELP_EMAIL}</a>
+      </p>
     </form>
   );
 };
@@ -341,6 +346,9 @@ export default function SelectionPage() {
         {view === 'import' && <ImportView call={call} notify={notify} leadName={leadName} onImported={loadApps} />}
         {view === 'logins' && <LoginsView call={call} notify={notify} />}
         {view === 'templates' && <SettingsView settings={settings} call={call} notify={notify} onSaved={setSettings} />}
+        <p className="mt-10 border-t border-slate-200 pt-4 text-center text-sm text-slate-500">
+          Problem or question? Email <a href={helpLink(login.label)} className="font-semibold text-[#E8481C] underline">{HELP_EMAIL}</a>
+        </p>
       </main>
 
       {detailId && apps.some((a) => a.id === detailId) && (
