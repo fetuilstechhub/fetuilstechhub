@@ -71,7 +71,7 @@ export type Application = {
   on_site_bucket: 'yes' | 'maybe' | 'no' | 'unknown';
   skills: string;
   portfolio_links: string[];
-  returning: boolean;
+  returning_intern: boolean;
   answers: { q: string; a: string }[];
   problems: string[];
   status: Status;

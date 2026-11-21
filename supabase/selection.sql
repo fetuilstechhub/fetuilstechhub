@@ -36,7 +36,7 @@ create table if not exists sel_applications (
   on_site_bucket text not null default 'unknown',
   skills text not null default '',
   portfolio_links jsonb not null default '[]',
-  returning boolean not null default false,
+  returning_intern boolean not null default false,
   answers jsonb not null default '[]',
   problems jsonb not null default '[]',
   import_batch uuid,

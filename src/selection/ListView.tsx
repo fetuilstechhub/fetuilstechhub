@@ -37,7 +37,7 @@ export default function ListView({
       if (status && a.status !== status) return false;
       if (hours && a.hours_bucket !== hours) return false;
       if (onSite && a.on_site_bucket !== onSite) return false;
-      if (flag === 'returning' && !a.returning) return false;
+      if (flag === 'returning' && !a.returning_intern) return false;
       if (flag === 'contacted' && !a.contacted) return false;
       if (flag === 'not-contacted' && a.contacted) return false;
       if (flag === 'not-unilorin' && a.is_unilorin !== false) return false;
@@ -60,7 +60,7 @@ export default function ListView({
       ['Name', 'Team', 'Status', 'Score', 'Email', 'Phone', 'Faculty/Department', ...(showPrivate ? ['Matric'] : []), 'Hours', 'On site', 'Returning', 'Contacted', 'Applied'],
       ...list.map((a) => [
         a.applicant_name, teamLabel(a.team), statusLabel(a.status), a.score ?? '', a.applicant_email, a.phone, a.faculty_dept,
-        ...(showPrivate ? [a.matric_number ?? ''] : []), a.hours_per_week, a.available_on_site, a.returning ? 'Yes' : 'No',
+        ...(showPrivate ? [a.matric_number ?? ''] : []), a.hours_per_week, a.available_on_site, a.returning_intern ? 'Yes' : 'No',
         a.contacted ? 'Yes' : 'No', a.submitted_at ?? '',
       ]),
     ]);

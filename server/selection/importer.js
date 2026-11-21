@@ -229,7 +229,7 @@ export function readSheet(csvText) {
       on_site_bucket: onSiteBucket(onSite),
       skills: first(derived.skills).slice(0, 2000),
       portfolio_links: links,
-      returning: yes(first(identity.returning)),
+      returning_intern: yes(first(identity.returning)),
       answers,
       problems: issues,
     });

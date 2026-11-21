@@ -30,7 +30,7 @@ const chunks = (list, size) => Array.from({ length: Math.ceil(list.length / size
 const IMPORTED_FIELDS = [
   'source_key', 'applicant_name', 'applicant_email', 'applicant_email_alt', 'phone', 'phone_wa', 'role_raw',
   'submitted_at', 'is_unilorin', 'faculty_dept', 'matric_number', 'hours_per_week', 'hours_bucket',
-  'available_on_site', 'on_site_bucket', 'skills', 'portfolio_links', 'returning', 'answers', 'problems',
+  'available_on_site', 'on_site_bucket', 'skills', 'portfolio_links', 'returning_intern', 'answers', 'problems',
 ];
 
 export function selectionRouter({ supabase, limiter, sendEmail, tokenSecret, frontendUrl }) {

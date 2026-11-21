@@ -137,7 +137,7 @@ test('import previews first, then writes, and never duplicates on re-import', as
   assert.equal(ada.applicant_name, 'Ada Obi');
   assert.equal(ada.phone_wa, '2348031234567');
   assert.equal(ada.hours_bucket, '10plus');
-  assert.equal(ada.returning, true);
+  assert.equal(ada.returning_intern, true);
   assert.ok(ada.answers.some((x) => x.a === 'Updated answer'), 'the later duplicate row wins');
   const bayo = state.sel_applications.find((a) => a.applicant_email === 'bayo@gmail.com');
   assert.equal(bayo.is_unilorin, false);

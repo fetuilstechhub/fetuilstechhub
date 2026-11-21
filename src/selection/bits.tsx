@@ -19,7 +19,7 @@ const Tag = ({ children, tone = 'slate' }: { children: React.ReactNode; tone?: '
 
 export const Badges = ({ app }: { app: Application }) => (
   <span className="flex flex-wrap gap-1">
-    {app.returning && <Tag tone="sky">Returning intern</Tag>}
+    {app.returning_intern && <Tag tone="sky">Returning intern</Tag>}
     {app.is_unilorin === false && <Tag tone="amber">Not Unilorin</Tag>}
     {!app.phone_wa && <Tag tone="red">Check phone number</Tag>}
     {app.contacted && <Tag tone="emerald">Message opened {day(app.last_contacted_at)}</Tag>}
