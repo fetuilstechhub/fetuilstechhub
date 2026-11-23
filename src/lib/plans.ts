@@ -3,7 +3,7 @@ export const workspacePlans = [
     id: 'daily',
     title: "The Daily Pass",
     subtitle: "The 'Quick Grind'",
-    description: "Perfect for students who just need a few hours of steady power and internet to finish an assignment or join a meeting.",
+    description: "Perfect for students who just need a few hours of steady power and a quiet place to finish an assignment or study.",
     price: 1000,
     // Launch offer: shown struck through next to the price.
     wasPrice: 1500,

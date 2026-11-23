@@ -25,13 +25,12 @@ const Pricing = () => {
       title: "The Daily Pass",
       subtitle: "The 'Quick Grind'",
       description:
-        "Perfect for students who just need a few hours of steady power and internet to finish an assignment or join a meeting.",
+        "Perfect for students who just need a few hours of steady power and a quiet place to finish an assignment or study.",
       price: "₦1,000",
       wasPrice: "₦1,500",
       period: "/ day",
       icon: Zap,
       features: [
-        "Access to high-speed Wi-Fi",
         "Guaranteed power & charging ports",
         "Access to the common area",
       ],
