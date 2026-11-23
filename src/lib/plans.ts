@@ -14,7 +14,8 @@ export const workspacePlans = [
     title: "The Weekly Plan",
     subtitle: "The 'Project Week'",
     description: "Designed for students working on a specific hackathon, a mid-term project, or an intensive study week.",
-    price: 6500,
+    price: 4500,
+    wasPrice: 6500,
     period: '/ week',
   },
   {
@@ -22,7 +23,8 @@ export const workspacePlans = [
     title: "Monthly / Semester Plan",
     subtitle: "The 'Power User'",
     description: "For serious developers, designers, and students who want the Hub to be their permanent 'office' on campus.",
-    price: 20000,
+    price: 15000,
+    wasPrice: 20000,
     period: '/ month',
   },
   {
@@ -30,7 +32,8 @@ export const workspacePlans = [
     title: "The 'Team/Startup' Bundle",
     subtitle: "For teams of 3–5",
     description: "For groups of 3–5 students working together on a startup or a final year project.",
-    price: 20000,
+    price: 15000,
+    wasPrice: 20000,
     period: '/ month / team',
   },
 ];

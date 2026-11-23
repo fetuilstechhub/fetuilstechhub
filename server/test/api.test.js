@@ -94,8 +94,8 @@ async function createBooking(body = valid) {
 
 test('the browser cannot set the price', async () => {
   await createBooking({ ...valid, amount: 1, plan_title: 'Hacked' });
-  assert.equal(state.paystackInits[0].amount, 2000000);
-  assert.equal(state.bookings[0].amount, 20000);
+  assert.equal(state.paystackInits[0].amount, 1500000);
+  assert.equal(state.bookings[0].amount, 15000);
   assert.equal(state.bookings[0].plan_title, 'Monthly / Semester Plan');
 });
 
@@ -129,8 +129,8 @@ test('a failed Paystack start marks the booking failed', async () => {
 
 test('a valid webhook marks the booking paid and sends one email, even when retried', async () => {
   const reference = await createBooking();
-  assert.equal((await webhook(charge(reference, 2000000))).status, 200);
-  assert.equal((await webhook(charge(reference, 2000000))).status, 200);
+  assert.equal((await webhook(charge(reference, 1500000))).status, 200);
+  assert.equal((await webhook(charge(reference, 1500000))).status, 200);
   assert.equal(state.bookings[0].status, 'paid');
   assert.equal(state.emails.length, 1);
   assert.equal(state.emails[0].to, 'ada@example.com');
@@ -138,7 +138,7 @@ test('a valid webhook marks the booking paid and sends one email, even when retr
 
 test('the emailed pass has the holder, code, validity and a link to the live pass', async () => {
   const reference = await createBooking();
-  await webhook(charge(reference, 2000000));
+  await webhook(charge(reference, 1500000));
   const { html, subject } = state.emails[0];
   const code = `FET-${reference.slice(4, 12).toUpperCase()}`;
   assert.match(subject, /pass/i);
@@ -152,8 +152,8 @@ test('the emailed pass has the holder, code, validity and a link to the live pas
 
 test('a forged webhook changes nothing', async () => {
   const reference = await createBooking();
-  assert.equal((await webhook(charge(reference, 2000000), 'wrong_secret')).status, 401);
-  assert.equal((await post('/api/webhook', charge(reference, 2000000))).status, 401);
+  assert.equal((await webhook(charge(reference, 1500000), 'wrong_secret')).status, 401);
+  assert.equal((await post('/api/webhook', charge(reference, 1500000))).status, 401);
   assert.equal(state.bookings[0].status, 'pending');
   assert.equal(state.emails.length, 0);
 });
@@ -161,7 +161,7 @@ test('a forged webhook changes nothing', async () => {
 test('an underpaid or wrong-currency charge does not mark the booking paid', async () => {
   const reference = await createBooking();
   await webhook(charge(reference, 100));
-  await webhook(charge(reference, 2000000, 'USD'));
+  await webhook(charge(reference, 1500000, 'USD'));
   assert.equal(state.bookings[0].status, 'pending');
   assert.equal(state.emails.length, 0);
 });
@@ -169,29 +169,29 @@ test('an underpaid or wrong-currency charge does not mark the booking paid', asy
 test('a database failure tells Paystack to retry, and the retry succeeds', async () => {
   const reference = await createBooking();
   state.failDbWrites = true;
-  assert.equal((await webhook(charge(reference, 2000000))).status, 500);
+  assert.equal((await webhook(charge(reference, 1500000))).status, 500);
   assert.equal(state.bookings[0].status, 'pending');
   state.failDbWrites = false;
-  assert.equal((await webhook(charge(reference, 2000000))).status, 200);
+  assert.equal((await webhook(charge(reference, 1500000))).status, 200);
   assert.equal(state.bookings[0].status, 'paid');
 });
 
 test('other Paystack events are ignored', async () => {
   const reference = await createBooking();
-  assert.equal((await webhook({ event: 'transfer.success', data: { reference, amount: 2000000, currency: 'NGN', status: 'success' } })).status, 200);
+  assert.equal((await webhook({ event: 'transfer.success', data: { reference, amount: 1500000, currency: 'NGN', status: 'success' } })).status, 200);
   assert.equal(state.bookings[0].status, 'pending');
 });
 
 test('the status check confirms payment if the webhook never arrives', async () => {
   const reference = await createBooking();
-  state.verify = { status: 'success', amount: 2000000, currency: 'NGN' };
+  state.verify = { status: 'success', amount: 1500000, currency: 'NGN' };
   const res = await fetch(`${API}/api/booking-status?reference=${reference}`);
   const data = await res.json();
   assert.equal(data.status, 'paid');
   assert.equal(data.booking_date, future);
   assert.equal(state.emails.length, 1);
   // The later webhook must not send a second email.
-  await webhook(charge(reference, 2000000));
+  await webhook(charge(reference, 1500000));
   assert.equal(state.emails.length, 1);
 });
 
@@ -208,7 +208,7 @@ test('the status check stays pending for an unpaid transaction and hides interna
 
 test('customer input is escaped in emails', async () => {
   const reference = await createBooking({ ...valid, full_name: '<img src=x onerror=alert(1)>' });
-  await webhook(charge(reference, 2000000));
+  await webhook(charge(reference, 1500000));
   assert.ok(!state.emails[0].html.includes('<img src=x'));
   assert.ok(state.emails[0].html.includes('&lt;img'));
 });

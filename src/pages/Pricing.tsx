@@ -43,12 +43,13 @@ const Pricing = () => {
       subtitle: "The 'Project Week'",
       description:
         "Designed for students working on a specific hackathon, a mid-term project, or an intensive study week.",
-      price: "₦6,500",
+      price: "₦4,500",
+      wasPrice: "₦6,500",
       period: "/ week",
       icon: Calendar,
       features: [
         "All Daily Pass benefits",
-        "Save ₦500 compared to 7 daily passes",
+        "Save ₦500 on a full week (5 open days)",
         "Priority seating in the quiet zone",
       ],
       highlight: true,
@@ -59,11 +60,13 @@ const Pricing = () => {
       subtitle: "The 'Power User'",
       description:
         "For serious developers, designers, and students who want the Hub to be their permanent office on campus.",
-      price: "₦20,000",
+      price: "₦15,000",
+      wasPrice: "₦20,000",
       period: "/ month or bulk deal",
       icon: Briefcase,
       features: [
         "All Daily/Weekly benefits",
+        "Save about ₦7,000 on a month of daily passes",
         "Personal locker/storage space (if available)",
         "10% discount on Studio/Podcast sessions",
         "10% discount on Hub Merchandise",
@@ -89,7 +92,8 @@ const Pricing = () => {
       title: "The Team/Startup Bundle",
       description:
         "For groups of 3–5 students working together on a startup or a final year project.",
-      price: "₦20,000",
+      price: "₦15,000",
+      wasPrice: "₦20,000",
       period: "per month / team",
       icon: Users,
       features: ["Dedicated table/area for the team to collaborate"],
@@ -330,6 +334,12 @@ const Pricing = () => {
                     {plan.description}
                   </p>
 
+                  {"wasPrice" in plan && (
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="rounded-full bg-primary px-3 py-0.5 text-xs font-bold uppercase tracking-wide text-primary-foreground">Launch price</span>
+                      <span className="text-sm text-muted-foreground line-through">{plan.wasPrice}</span>
+                    </div>
+                  )}
                   <div className="flex items-end gap-2 mb-4">
                     <span className="text-2xl font-bold text-primary">
                       {plan.price}

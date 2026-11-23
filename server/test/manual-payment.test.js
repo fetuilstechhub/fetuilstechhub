@@ -402,14 +402,14 @@ test('the overview adds up money received, waiting payments, check-ins and event
   await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() });
 
   const o = await adminGet('overview');
-  assert.equal(o.revenue.today, 1000 + 6500 + 50000);
-  assert.equal(o.revenue.month, 57500);
+  assert.equal(o.revenue.today, 1000 + 4500 + 50000);
+  assert.equal(o.revenue.month, 55500);
   assert.equal(o.revenue.month_payments, 3);
   assert.equal(o.waiting_payments, 1);
   assert.equal(o.check_ins_today, 1);
   assert.equal(o.active_passes, 3);
   assert.equal(o.daily.length, 14);
-  assert.equal(o.daily[13].amount, 57500);
+  assert.equal(o.daily[13].amount, 55500);
   assert.equal(o.upcoming_events.length, 1);
   assert.equal(o.by_plan[0].plan, 'Event Hall');
 
