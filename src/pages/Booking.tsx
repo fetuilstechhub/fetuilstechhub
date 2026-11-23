@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Check, Loader2, Lock, MessageCircle } from 'lucide-react';
 import { workspacePlans, eventItems, rentalItems } from '@/lib/plans';
-import { ONLINE_PAYMENTS, WHATSAPP_NUMBERS, whatsappLink } from '@/lib/payment';
+import { ONLINE_PAYMENTS, WHATSAPP_NUMBERS, phoneLabel, whatsappLink } from '@/lib/payment';
 import BookingPass from '@/components/BookingPass';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 
-type PlanOption = { id: string; title: string; price: number; period?: string };
+type PlanOption = { id: string; title: string; price: number; wasPrice?: number; period?: string };
 
 const allPlans: PlanOption[] = [...workspacePlans, ...eventItems, ...rentalItems];
 const PHOTO_PLANS = ['weekly', 'monthly'];
@@ -39,8 +39,12 @@ const PlanCard = ({ plan, selected, onSelect }: { plan: PlanOption; selected: bo
       </span>
     )}
     <div className="pr-6 text-sm font-semibold text-[#0B1F3F]">{plan.title}</div>
-    <div className="mt-2 text-lg font-extrabold text-[#0B1F3F]">₦{plan.price.toLocaleString()}</div>
+    <div className="mt-2 flex flex-wrap items-baseline gap-x-2">
+      <span className="text-lg font-extrabold text-[#0B1F3F]">₦{plan.price.toLocaleString()}</span>
+      {plan.wasPrice && <span className="text-sm text-slate-400 line-through">₦{plan.wasPrice.toLocaleString()}</span>}
+    </div>
     <div className="text-xs text-slate-500">{plan.period}</div>
+    {plan.wasPrice && <div className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">Launch price</div>}
   </button>
 );
 
@@ -90,14 +94,9 @@ const Booking = () => {
       if (json.authorization_url) {
         window.location.href = json.authorization_url;
       } else if (json.whatsapp_message) {
+        // The customer picks which of our two WhatsApp lines to message.
         setSentMessage(json.whatsapp_message);
         window.scrollTo({ top: 0 });
-        // A new tab keeps the next steps on screen. Phones often block it this long
-        // after the tap, so fall back to this tab.
-        const link = whatsappLink(json.whatsapp_message);
-        const tab = window.open(link, '_blank');
-        if (tab) tab.opener = null;
-        else window.location.href = link;
       } else {
         showError('We could not save your booking. Please try again.');
       }
@@ -133,19 +132,22 @@ const Booking = () => {
                   <li><strong>2.</strong> Our team will send you the account details to pay into.</li>
                   <li><strong>3.</strong> Once your payment is confirmed, we'll email your pass to <strong className="break-words">{email}</strong>.</li>
                 </ol>
-                <a
-                  href={whatsappLink(sentMessage)}
-                  className="mt-6 flex h-12 items-center justify-center gap-2 rounded-full bg-[#128C3E] px-6 font-bold text-white hover:bg-[#0F7A36]"
-                >
-                  <MessageCircle className="h-5 w-5" /> Open WhatsApp
-                </a>
-                <p className="mt-4 text-center text-sm text-slate-500">
-                  Can't get through? Try{' '}
-                  <a className="font-medium text-primary" href={whatsappLink(sentMessage, WHATSAPP_NUMBERS[1])}>
-                    our other number
-                  </a>
-                  .
-                </p>
+                <p className="mt-6 text-sm font-semibold text-[#0B1F3F]">Message either of our lines:</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {WHATSAPP_NUMBERS.map((n, i) => (
+                    <a
+                      key={n}
+                      href={whatsappLink(sentMessage, n)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-14 flex-col items-center justify-center rounded-full bg-[#128C3E] px-6 font-bold leading-tight text-white hover:bg-[#0F7A36]"
+                    >
+                      <span className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /> WhatsApp line {i + 1}</span>
+                      <span className="text-xs font-medium text-white/80">{phoneLabel(n)}</span>
+                    </a>
+                  ))}
+                </div>
+                <p className="mt-4 text-center text-sm text-slate-500">If one doesn't reply quickly, try the other.</p>
               </div>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-6">

@@ -96,13 +96,13 @@ test('a booking is saved as pending and never touches Paystack', async () => {
   assert.equal(body.authorization_url, undefined);
   assert.equal(state.paystackInits.length, 0);
   assert.equal(state.bookings[0].status, 'pending');
-  assert.equal(state.bookings[0].amount, 1500);
+  assert.equal(state.bookings[0].amount, 1000);
   assert.equal(state.emails.length, 0);
 });
 
 test('the WhatsApp message carries the server price, plan and booking code', async () => {
   const { reference, whatsapp_message: message } = await book({ ...valid, full_name: 'Ada\nObi', amount: 1 });
-  for (const expected of ['Name: Ada Obi', 'Email: ada@example.com', '₦1,500', `FET-${reference.slice(4, 12).toUpperCase()}`]) {
+  for (const expected of ['Name: Ada Obi', 'Email: ada@example.com', '₦1,000', `FET-${reference.slice(4, 12).toUpperCase()}`]) {
     assert.ok(message.includes(expected), expected);
   }
   assert.ok(message.includes(state.bookings[0].plan_title));
@@ -222,11 +222,11 @@ test('staff see every event with its guest count and guest list', async () => {
 
 test('Paystack cannot release a pass in this mode', async () => {
   const { reference } = await book();
-  state.verify = { status: 'success', amount: 150000, currency: 'NGN' };
+  state.verify = { status: 'success', amount: 100000, currency: 'NGN' };
   const status = await (await fetch(`${API}/api/booking-status?reference=${reference}`)).json();
   assert.equal(status.status, 'pending');
 
-  const raw = JSON.stringify({ event: 'charge.success', data: { reference, amount: 150000, currency: 'NGN' } });
+  const raw = JSON.stringify({ event: 'charge.success', data: { reference, amount: 100000, currency: 'NGN' } });
   const signature = crypto.createHmac('sha512', '').update(raw).digest('hex');
   const hook = await fetch(`${API}/api/webhook`, {
     method: 'POST',
@@ -317,7 +317,7 @@ test('the list shows recent waiting bookings and confirmed ones', async () => {
   const { bookings: confirmed } = await paidBookings();
   assert.deepEqual(waiting.map((p) => p.reference), [second.reference]);
   assert.equal(waiting[0].notes, 'Arriving at noon');
-  assert.equal(waiting[0].amount, 1500);
+  assert.equal(waiting[0].amount, 1000);
   assert.deepEqual(confirmed.map((p) => p.reference), [first.reference]);
   assert.ok(!JSON.stringify(waiting).includes(old.reference));
   assert.equal(waiting[0].id, undefined);
@@ -402,14 +402,14 @@ test('the overview adds up money received, waiting payments, check-ins and event
   await adminPost('events', { organiser_name: 'Tola', organiser_email: 't@e.co', date: today, title: 'Summit Day', start_time: later() });
 
   const o = await adminGet('overview');
-  assert.equal(o.revenue.today, 1500 + 6500 + 50000);
-  assert.equal(o.revenue.month, 58000);
+  assert.equal(o.revenue.today, 1000 + 6500 + 50000);
+  assert.equal(o.revenue.month, 57500);
   assert.equal(o.revenue.month_payments, 3);
   assert.equal(o.waiting_payments, 1);
   assert.equal(o.check_ins_today, 1);
   assert.equal(o.active_passes, 3);
   assert.equal(o.daily.length, 14);
-  assert.equal(o.daily[13].amount, 58000);
+  assert.equal(o.daily[13].amount, 57500);
   assert.equal(o.upcoming_events.length, 1);
   assert.equal(o.by_plan[0].plan, 'Event Hall');
 

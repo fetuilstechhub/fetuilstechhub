@@ -26,7 +26,8 @@ const Pricing = () => {
       subtitle: "The 'Quick Grind'",
       description:
         "Perfect for students who just need a few hours of steady power and internet to finish an assignment or join a meeting.",
-      price: "₦1,500",
+      price: "₦1,000",
+      wasPrice: "₦1,500",
       period: "/ day",
       icon: Zap,
       features: [
@@ -47,7 +48,7 @@ const Pricing = () => {
       icon: Calendar,
       features: [
         "All Daily Pass benefits",
-        "Save ~₦1,000 compared to daily",
+        "Save ₦500 compared to 7 daily passes",
         "Priority seating in the quiet zone",
       ],
       highlight: true,
@@ -280,6 +281,12 @@ const Pricing = () => {
                 </div>
 
                 <div className="mb-8">
+                  {"wasPrice" in plan && (
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="rounded-full bg-primary px-3 py-0.5 text-xs font-bold uppercase tracking-wide text-primary-foreground">Launch price</span>
+                      <span className="text-muted-foreground line-through">{plan.wasPrice}</span>
+                    </div>
+                  )}
                   <span className="text-4xl font-bold">{plan.price}</span>
                   <span className="text-muted-foreground ml-2">
                     {plan.period}

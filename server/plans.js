@@ -4,7 +4,7 @@
 //   entriesPerDay: how many times the pass opens the door each day
 //   photo: guard photographs the holder at first entry and compares on later days
 export const PLANS = {
-  daily: { title: 'The Daily Pass', price: 1500, days: 1, entriesPerDay: 1, photo: false },
+  daily: { title: 'The Daily Pass', price: 1000, days: 1, entriesPerDay: 1, photo: false },
   weekly: { title: 'The Weekly Plan', price: 6500, days: 7, entriesPerDay: 1, photo: true },
   monthly: { title: 'Monthly / Semester Plan', price: 20000, days: 30, entriesPerDay: 1, photo: true },
   team_startup: { title: "The 'Team/Startup' Bundle", price: 20000, days: 30, entriesPerDay: 5, photo: false },

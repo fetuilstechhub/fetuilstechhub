@@ -81,7 +81,7 @@ function addBooking({ plan = 'daily', status = 'paid', start = lagos(), end = st
     email: 'ada@example.com',
     plan_id: plan,
     plan_title: `Title ${plan}`,
-    amount: 1500,
+    amount: 1000,
     currency: 'NGN',
     status,
     paystack_reference: ref,
@@ -162,7 +162,7 @@ test('yesterday\'s daily pass is expired', async () => {
 });
 
 test('a paid pass still works if the Paystack confirmation was missed', async () => {
-  state.verify = { status: 'success', amount: 150000, currency: 'NGN' };
+  state.verify = { status: 'success', amount: 100000, currency: 'NGN' };
   const result = await scan(addBooking({ status: 'pending' }));
   assert.equal(result.verdict, 'enter');
 });
